@@ -16,12 +16,18 @@ export default function Home() {
         Choose a direction
       </p>
       <Hub />
-      <div className="absolute bottom-6 right-6 z-10 flex gap-6 text-[0.65rem] uppercase tracking-[0.3em] text-neon-dim/70">
+      <div className="absolute bottom-4 right-4 z-10 flex max-w-[260px] flex-wrap justify-end gap-x-4 gap-y-1 text-[0.6rem] uppercase tracking-[0.2em] text-neon-dim/70 sm:bottom-6 sm:right-6 sm:max-w-none sm:flex-nowrap sm:gap-6 sm:text-[0.65rem] sm:tracking-[0.3em]">
         <Link href="/about" className="transition-colors hover:text-neon">
           About
         </Link>
         <Link href="/writing" className="transition-colors hover:text-neon">
           Writing
+        </Link>
+        <Link href="/contact" className="transition-colors hover:text-neon">
+          Contact
+        </Link>
+        <Link href="/projects" className="transition-colors hover:text-neon">
+          Projects
         </Link>
       </div>
     </main>

@@ -9,7 +9,7 @@ const MILESTONES = [
 
 export default function NicotinePage() {
   return (
-    <SectionShell title="Quit Nicotine" centered>
+    <SectionShell title="Quit Nicotine" centered backDirection="right">
       <div className="flex flex-col items-center gap-10">
         <p>
           Placeholder — the full guide, resources, and progress tracking will

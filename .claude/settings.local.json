@@ -4,7 +4,15 @@
       "Bash(npx --yes create-next-app@latest . --typescript --tailwind --eslint --app --no-src-dir --import-alias \"@/*\" --use-npm --disable-git)",
       "Bash(npx --yes create-next-app@latest techno-website-tmp --typescript --tailwind --eslint --app --no-src-dir --import-alias \"@/*\" --use-npm --disable-git)",
       "Bash(npx tsc *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(netstat -ano)",
+      "Bash(powershell -Command \"Get-Process -Id 23376 -ErrorAction SilentlyContinue | Select-Object Id,ProcessName,StartTime,Path\")",
+      "Bash(curl -s http://localhost:3000/careful)",
+      "Bash(curl -s http://localhost:3000/crate)",
+      "Bash(powershell -Command \"Get-Process -Id 23376 -ErrorAction SilentlyContinue | Select-Object Id,ProcessName,StartTime\")",
+      "Bash(powershell -Command \"Stop-Process -Id 23376 -Force\")",
+      "Bash(echo \"exit: $?\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/throne-room)"
     ]
   }
 }

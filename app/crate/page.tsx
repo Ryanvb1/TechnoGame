@@ -3,7 +3,7 @@ import { CrateOpener } from "@/components/CrateOpener";
 
 export default function CratePage() {
   return (
-    <SectionShell title="Daily Crate" centered>
+    <SectionShell title="Daily Crate" centered backDirection="left">
       <div className="flex flex-col items-center gap-8">
         <p>
           Placeholder — one crate drops per day. Click it open to reveal
