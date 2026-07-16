@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+:root {
+  --background: #050706;
+  --foreground: #e8fff3;
+  --neon: #39ff8f;
+  --neon-dim: #1c8f52;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-neon: var(--neon);
+  --color-neon-dim: var(--neon-dim);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --radius-none: 0px;
+}
+
+* {
+  border-radius: 0 !important;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-mono), monospace;
+}
