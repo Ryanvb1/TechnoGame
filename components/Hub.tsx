@@ -20,9 +20,9 @@ export function Hub() {
         </span>
       </div>
       <ArrowButton direction="up" href="/projects" label="Projects" />
-      <ArrowButton direction="right" href="/writing" label="Writing" />
+      <ArrowButton direction="right" href="/crate" label="Crate" />
       <ArrowButton direction="down" href="/contact" label="Contact" />
-      <ArrowButton direction="left" href="/about" label="About" />
+      <ArrowButton direction="left" href="/nicotine" label="Quit" />
     </div>
   );
 }

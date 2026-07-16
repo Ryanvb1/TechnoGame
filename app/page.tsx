@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Hub } from "@/components/Hub";
 
 export default function Home() {
@@ -15,6 +16,14 @@ export default function Home() {
         Choose a direction
       </p>
       <Hub />
+      <div className="absolute bottom-6 right-6 z-10 flex gap-6 text-[0.65rem] uppercase tracking-[0.3em] text-neon-dim/70">
+        <Link href="/about" className="transition-colors hover:text-neon">
+          About
+        </Link>
+        <Link href="/writing" className="transition-colors hover:text-neon">
+          Writing
+        </Link>
+      </div>
     </main>
   );
 }

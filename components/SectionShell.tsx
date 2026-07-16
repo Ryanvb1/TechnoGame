@@ -3,12 +3,18 @@ import Link from "next/link";
 export function SectionShell({
   title,
   children,
+  centered = false,
 }: {
   title: string;
   children?: React.ReactNode;
+  centered?: boolean;
 }) {
   return (
-    <main className="flex min-h-screen flex-col items-start gap-10 px-8 py-12 sm:px-16">
+    <main
+      className={`flex min-h-screen flex-col gap-10 px-8 py-12 sm:px-16 ${
+        centered ? "items-center text-center" : "items-start"
+      }`}
+    >
       <Link
         href="/"
         className="group flex items-center gap-3 text-xs uppercase tracking-[0.3em] text-neon-dim transition-colors duration-200 hover:text-neon"
