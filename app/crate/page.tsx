@@ -1,5 +1,6 @@
 import { SectionShell } from "@/components/SectionShell";
 import { CrateOpener } from "@/components/CrateOpener";
+import { LockedChest } from "@/components/LockedChest";
 
 export default function CratePage() {
   return (
@@ -11,6 +12,7 @@ export default function CratePage() {
         </p>
         <CrateOpener />
       </div>
+      <LockedChest />
     </SectionShell>
   );
 }

@@ -70,20 +70,27 @@ const GRASS_BLADES = Array.from({ length: GRASS_BLADE_COUNT }, (_, i) => {
   };
 });
 
+// Kept clear of the dugout hollow (roughly left 16-84%, top 40-98%), so
+// they only grow in the open grass around it.
 const MUSHROOM_SPOTS = [
-  { left: "14%", top: "78%" },
-  { left: "80%", top: "64%" },
-  { left: "88%", top: "86%" },
-  { left: "8%", top: "50%" },
+  { left: "6%", top: "78%" },
+  { left: "92%", top: "64%" },
+  { left: "94%", top: "86%" },
+  { left: "4%", top: "50%" },
 ];
 
 const FLOWER_SPOTS = [
-  { left: "24%", top: "60%" },
-  { left: "64%", top: "72%" },
-  { left: "72%", top: "44%" },
-  { left: "20%", top: "88%" },
-  { left: "58%", top: "90%" },
+  { left: "8%", top: "60%" },
+  { left: "90%", top: "72%" },
+  { left: "10%", top: "30%" },
+  { left: "88%", top: "34%" },
+  { left: "6%", top: "92%" },
 ];
+
+// A rounded hollow dug into the earth — the gnome's little dugout, sunk
+// below the surrounding grass rather than a flat dirt road.
+const DUGOUT_CLIP_PATH =
+  "polygon(50% 2%, 74% 8%, 92% 26%, 98% 52%, 88% 76%, 68% 94%, 32% 96%, 10% 80%, 2% 54%, 8% 28%, 26% 10%)";
 
 export function FairytaleBackground() {
   return (
@@ -127,9 +134,11 @@ export function FairytaleBackground() {
       ))}
 
       {/* fairytale cottage — a round door and window in a mushroom-capped
-          little house, tucked into the treeline at the horizon */}
+          little house, tucked into the treeline at the horizon. Kept over
+          on the left so its mushroom cap doesn't overlap the centered
+          title/paragraph text. */}
       <div
-        className="absolute left-[38%] h-24 w-20 sm:h-28 sm:w-24"
+        className="absolute left-[2%] h-24 w-20 sm:left-[8%] sm:h-28 sm:w-24"
         style={{ bottom: `${GROUND_HEIGHT_PCT}%` }}
       >
         <div
@@ -207,14 +216,41 @@ export function FairytaleBackground() {
             style={{ background: "linear-gradient(180deg, #24401f 0%, #386730 45%, #57a13f 100%)" }}
           />
 
-          {/* dirt path leading up to the cottage door */}
+          {/* the dugout — a hollow dug into the earth where the gnome has
+              set up a little home, sunk below the surrounding grass
+              instead of a flat dirt road */}
           <div
-            className="absolute inset-0"
+            className="absolute"
             style={{
-              clipPath: "polygon(46% 0%, 54% 0%, 66% 100%, 34% 100%)",
-              background: "linear-gradient(180deg, #7a6448 0%, #93794f 100%)",
+              left: "18%",
+              top: "40%",
+              width: "64%",
+              height: "58%",
+              clipPath: DUGOUT_CLIP_PATH,
+              background:
+                "radial-gradient(ellipse at 50% 38%, #8a6b46 0%, #6b4f30 45%, #4a3620 78%, #2e2012 100%)",
+              boxShadow: "inset 0 18px 40px rgba(0,0,0,0.55)",
             }}
-          />
+          >
+            {/* cut-sod rim, a thin ring of exposed root-earth where the
+                grass was dug away */}
+            <div
+              className="absolute inset-0 opacity-70"
+              style={{
+                clipPath: DUGOUT_CLIP_PATH,
+                boxShadow: "inset 0 0 0 6px rgba(58,42,26,0.65)",
+              }}
+            />
+            {/* a couple of root tendrils poking from the earthen wall */}
+            <div
+              className="absolute left-[8%] top-[20%] h-[3px] w-[22%] rotate-[8deg]"
+              style={{ background: "#5c4326", clipPath: "polygon(0% 40%, 100% 0%, 100% 100%, 0% 60%)" }}
+            />
+            <div
+              className="absolute right-[10%] top-[55%] h-[3px] w-[18%] rotate-[-12deg]"
+              style={{ background: "#5c4326", clipPath: "polygon(0% 0%, 100% 40%, 100% 60%, 0% 100%)" }}
+            />
+          </div>
 
           {/* scattered mushrooms */}
           {MUSHROOM_SPOTS.map((m, i) => (
@@ -257,6 +293,157 @@ export function FairytaleBackground() {
               }}
             />
           ))}
+
+          {/* the gnome's little setup — boxes and odd materials scattered
+              in the dugout, rendered after (on top of) the dirt and grass
+              blades so nothing above them in the DOM covers them up.
+              Scaled up 3x (from bottom-center, so they still sit on the
+              ground) to actually read at gnome scale instead of tiny. */}
+          <div
+            className="absolute"
+            style={{ left: "16%", top: "58%", width: 20, height: 26, transform: "scale(3)", transformOrigin: "bottom center" }}
+          >
+            {/* barrel */}
+            <div
+              className="absolute bottom-0 h-[26px] w-[20px]"
+              style={{
+                clipPath: "polygon(15% 0%, 85% 0%, 100% 50%, 85% 100%, 15% 100%, 0% 50%)",
+                background: "linear-gradient(180deg, #8a6b40 0%, #5c4526 100%)",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+              }}
+            >
+              <div className="absolute inset-x-0 top-[30%] h-[2px] bg-[#3a2c1a]" />
+              <div className="absolute inset-x-0 top-[68%] h-[2px] bg-[#3a2c1a]" />
+            </div>
+          </div>
+
+          <div
+            className="absolute"
+            style={{ left: "32%", top: "76%", width: 16, height: 16, transform: "scale(3)", transformOrigin: "bottom center" }}
+          >
+            {/* small crate */}
+            <div
+              className="absolute bottom-0 h-[16px] w-[16px]"
+              style={{
+                background: "linear-gradient(180deg, #a9855a 0%, #7a5c3a 100%)",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+              }}
+            >
+              <div className="absolute inset-x-0 top-1/2 h-[2px] -translate-y-1/2 bg-[#5c4326]" />
+              <div className="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2 bg-[#5c4326]" />
+            </div>
+          </div>
+
+          <div
+            className="absolute"
+            style={{ left: "44%", top: "84%", width: 28, height: 10, transform: "scale(3)", transformOrigin: "bottom center" }}
+          >
+            {/* stacked planks */}
+            <div className="absolute bottom-0 h-[3px] w-full bg-[#7a5c3a]" />
+            <div className="absolute bottom-[4px] h-[3px] w-full bg-[#8a6b46]" />
+            <div className="absolute bottom-[8px] h-[3px] w-[85%] bg-[#7a5c3a]" />
+          </div>
+
+          <div
+            className="absolute h-4 w-4"
+            style={{
+              left: "56%",
+              top: "80%",
+              transform: "scale(3)",
+              transformOrigin: "bottom center",
+              clipPath: "polygon(20% 0%, 80% 0%, 100% 40%, 85% 100%, 15% 100%, 0% 40%)",
+              background: "linear-gradient(180deg, #b8956a 0%, #8a6b46 100%)",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.35)",
+            }}
+          />
+
+          <div
+            className="absolute flex flex-col items-end"
+            style={{ left: "68%", top: "48%", width: 34, height: 34, transform: "scale(3)", transformOrigin: "bottom center" }}
+          >
+            {/* crate the cat stands on */}
+            <div
+              className="relative h-[24px] w-[30px]"
+              style={{
+                background: "linear-gradient(180deg, #a9855a 0%, #7a5c3a 100%)",
+                boxShadow: "0 3px 5px rgba(0,0,0,0.45)",
+              }}
+            >
+              <div className="absolute inset-x-0 top-1/2 h-[2px] -translate-y-1/2 bg-[#5c4326]" />
+              <div className="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2 bg-[#5c4326]" />
+            </div>
+            {/* white cat, sitting on the crate — occasionally licks a paw */}
+            <div className="absolute bottom-[22px] left-1/2 -translate-x-1/2" style={{ width: 26, height: 30 }}>
+              <div
+                className="absolute -right-[6px] bottom-[3px] h-3 w-[10px]"
+                style={{
+                  clipPath: "polygon(0% 40%, 60% 0%, 100% 20%, 60% 60%, 30% 100%, 0% 80%)",
+                  background: "linear-gradient(180deg,#ffffff,#e2e2da)",
+                }}
+              />
+              <div
+                className="absolute bottom-0 left-0 h-[15px] w-[19px]"
+                style={{
+                  clipPath: "polygon(10% 100%, 0% 40%, 20% 5%, 80% 5%, 100% 40%, 90% 100%)",
+                  background: "linear-gradient(180deg,#ffffff,#e2e2da)",
+                }}
+              />
+              <div
+                className="absolute left-1/2 top-0 h-[14px] w-[14px] -translate-x-1/2"
+                style={{
+                  clipPath: "circle(50% at 50% 50%)",
+                  background: "linear-gradient(180deg,#ffffff,#e2e2da)",
+                }}
+              >
+                <div
+                  className="absolute -top-[3px] left-0 h-[6px] w-[6px] rotate-[-15deg]"
+                  style={{ clipPath: "polygon(50% 0%, 100% 100%, 0% 100%)", background: "#e2e2da" }}
+                />
+                <div
+                  className="absolute -top-[3px] right-0 h-[6px] w-[6px] rotate-[15deg]"
+                  style={{ clipPath: "polygon(50% 0%, 100% 100%, 0% 100%)", background: "#e2e2da" }}
+                />
+                <div
+                  className="absolute left-[30%] top-[46%] h-[2px] w-[2px]"
+                  style={{ clipPath: "circle(50% at 50% 50%)", background: "#2a2a2a" }}
+                />
+                <div
+                  className="absolute right-[30%] top-[46%] h-[2px] w-[2px]"
+                  style={{ clipPath: "circle(50% at 50% 50%)", background: "#2a2a2a" }}
+                />
+                <div
+                  className="absolute left-1/2 top-[58%] h-[2px] w-[2px] -translate-x-1/2"
+                  style={{ clipPath: "circle(50% at 50% 50%)", background: "#e896a8" }}
+                />
+              </div>
+              {/* front paw — idles most of the time, occasionally lifts
+                  to lick, via the cat-lick keyframe */}
+              <div
+                className="absolute bottom-0 left-[3px] h-[7px] w-[5px] origin-bottom"
+                style={{
+                  clipPath: "circle(50% at 50% 30%)",
+                  background: "#f5f5f0",
+                  animation: "cat-lick 9s ease-in-out infinite",
+                }}
+              />
+            </div>
+          </div>
+
+          {/* small lantern post, warm ambient light in the dugout */}
+          <div
+            className="absolute"
+            style={{ left: "80%", top: "56%", width: 4, height: 34, transform: "scale(3)", transformOrigin: "bottom center" }}
+          >
+            <div className="absolute bottom-0 h-full w-full bg-[#3a2c1c]" />
+            <div
+              className="absolute -top-2 left-1/2 h-4 w-4 -translate-x-1/2"
+              style={{
+                clipPath: "circle(50% at 50% 50%)",
+                background: "radial-gradient(circle, #ffe9a0 0%, #caa243 70%, #7a5c1f 100%)",
+                boxShadow: "0 0 14px rgba(255,220,140,0.75)",
+              }}
+            />
+          </div>
         </div>
       </div>
 

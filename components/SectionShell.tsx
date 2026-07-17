@@ -72,6 +72,11 @@ export function SectionShell({
 
   const ropeFraction =
     ROPE_MIN_FRACTION + (1 - orbs / GNOME_MAX_ORBS) * (1 - ROPE_MIN_FRACTION);
+  // Once the gnome's progress is full, the snail has already been rescued
+  // (and turns up on the home screen instead) — the rope gets pulled all
+  // the way up out of sight, and this reverts to a normal back arrow.
+  const isRescued = orbs >= GNOME_MAX_ORBS;
+  const showRope = backVisual === "rope" && !isRescued;
 
   return (
     <main
@@ -84,10 +89,10 @@ export function SectionShell({
         onClick={handleBack}
         aria-label="Back to menu"
         className={`group fixed z-40 flex items-center justify-center outline-none ${
-          backVisual === "rope" ? "left-1/2 top-0 -translate-x-1/2" : WALL_POSITION_CLASS[backDirection]
+          showRope ? "left-1/2 top-0 -translate-x-1/2" : WALL_POSITION_CLASS[backDirection]
         }`}
       >
-        {backVisual === "rope" ? (
+        {showRope ? (
           <div className="flex origin-top animate-[rope-sway_3.5s_ease-in-out_infinite] flex-col items-center">
             <div
               className="w-3 transition-[height] duration-700 ease-out"

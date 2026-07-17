@@ -85,16 +85,19 @@ export function Gnome() {
         />
       )}
 
-      {/* customize dropdown, to the left of the gnome */}
+      {/* customize dropdown, to the left of the gnome — a solid dark
+          backdrop with a bright gold border/text so it stays readable
+          against the dirt/grass scene behind it, not just the dim neon
+          green that used to blend into the ground */}
       <div className="relative mb-4 flex flex-col items-center">
         <button
           onClick={() => setCustomizeOpen((o) => !o)}
-          className="touch-manipulation border border-neon-dim px-3 py-2 text-[0.6rem] uppercase tracking-[0.2em] text-neon-dim transition-colors hover:text-neon"
+          className="touch-manipulation border-2 border-[#ffd98a] bg-background/90 px-3 py-2 text-[0.6rem] uppercase tracking-[0.2em] text-[#ffd98a] shadow-[0_0_10px_rgba(0,0,0,0.6)] transition-colors hover:bg-[#ffd98a] hover:text-background"
         >
           Customize
         </button>
         {customizeOpen && (
-          <div className="absolute top-full z-10 mt-1 flex w-full flex-col border border-neon-dim bg-background/95 shadow-[0_0_15px_var(--neon-dim)]">
+          <div className="absolute top-full z-10 mt-1 flex w-full flex-col border-2 border-[#ffd98a] bg-background/95 shadow-[0_0_15px_rgba(0,0,0,0.7)]">
             <button
               onClick={() => chooseVariant("default")}
               className="touch-manipulation px-3 py-2 text-left text-[0.6rem] uppercase tracking-[0.2em] text-sky-400 transition-colors hover:bg-white/10"

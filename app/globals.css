@@ -212,6 +212,25 @@ body {
   }
 }
 
+@keyframes cat-lick {
+  0%,
+  82% {
+    transform: rotate(0deg) translateY(0);
+  }
+  87% {
+    transform: rotate(-35deg) translateY(-6px);
+  }
+  92% {
+    transform: rotate(-42deg) translateY(-7px);
+  }
+  97% {
+    transform: rotate(-10deg) translateY(-2px);
+  }
+  100% {
+    transform: rotate(0deg) translateY(0);
+  }
+}
+
 @keyframes star-twinkle {
   0%,
   100% {

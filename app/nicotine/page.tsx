@@ -7,7 +7,7 @@ export default function NicotinePage() {
     <SectionShell title="Gnome" centered backDirection="right">
       <FairytaleBackground />
       <div className="flex flex-col items-center gap-10">
-        <p>The Gnome is your friend, he keeps track of your progress.</p>
+        <p>The Gnome is your friend, they keep track of your progress.</p>
         <Gnome />
       </div>
     </SectionShell>
