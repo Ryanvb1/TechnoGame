@@ -25,14 +25,20 @@ export function ArrowButton({
   direction,
   href,
   label,
+  disabled = false,
 }: {
   direction: Direction;
   href: string;
   label: string;
+  disabled?: boolean;
 }) {
   const travel = useSceneTravel();
 
   function handleClick(e: MouseEvent<HTMLAnchorElement>) {
+    if (disabled) {
+      e.preventDefault();
+      return;
+    }
     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
       return;
     }
@@ -44,15 +50,27 @@ export function ArrowButton({
     <Link
       href={href}
       onClick={handleClick}
+      aria-disabled={disabled}
+      tabIndex={disabled ? -1 : undefined}
       style={{ gridArea: GRID_AREA[direction] }}
-      className="group relative flex items-center justify-center outline-none"
+      className={`group relative flex touch-manipulation items-center justify-center outline-none ${
+        disabled ? "cursor-not-allowed" : ""
+      }`}
     >
       <span
         style={{ clipPath: ARROW_CLIP_PATH[direction] }}
-        className="h-10 w-10 bg-neon-dim shadow-[0_0_10px_var(--neon-dim)] transition-all duration-200 ease-out group-hover:bg-neon group-hover:shadow-[0_0_20px_var(--neon),0_0_40px_var(--neon-dim)] group-focus-visible:bg-neon group-focus-visible:shadow-[0_0_20px_var(--neon),0_0_40px_var(--neon-dim)]"
+        className={`h-10 w-10 transition-all duration-200 ease-out sm:h-12 sm:w-12 ${
+          disabled
+            ? "bg-neon-dim/25"
+            : "bg-neon-dim shadow-[0_0_10px_var(--neon-dim)] group-hover:bg-neon group-hover:shadow-[0_0_20px_var(--neon),0_0_40px_var(--neon-dim)] group-focus-visible:bg-neon group-focus-visible:shadow-[0_0_20px_var(--neon),0_0_40px_var(--neon-dim)]"
+        }`}
       />
       <span
-        className={`absolute whitespace-nowrap text-xs uppercase tracking-[0.3em] text-neon-dim transition-colors duration-200 group-hover:text-neon group-focus-visible:text-neon ${LABEL_CLASS[direction]}`}
+        className={`absolute whitespace-nowrap text-xs uppercase tracking-[0.3em] transition-colors duration-200 sm:text-sm ${LABEL_CLASS[direction]} ${
+          disabled
+            ? "text-neon-dim/35"
+            : "text-neon-dim group-hover:text-neon group-focus-visible:text-neon"
+        }`}
       >
         {label}
       </span>

@@ -1,0 +1,42 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { GNOME_MAX_ORBS, readGnomeOrbs } from "./gnomeProgress";
+import { readSnailGreeted, markSnailGreeted } from "./snailState";
+import { ScaredSnail } from "./ScaredSnail";
+
+const GREETING_DISPLAY_MS = 4200;
+
+export function HomeSnail() {
+  // This page is statically generated, so the server/build-time HTML always
+  // has to assume "not rescued yet" (no localStorage on the server).
+  // Starting state at false matches that markup exactly, then this effect
+  // syncs in the real value right after mount — the resulting state update
+  // is what actually repaints the DOM to match.
+  const [rescued, setRescued] = useState(false);
+  const [showGreeting, setShowGreeting] = useState(false);
+
+  useEffect(() => {
+    const saved = readGnomeOrbs() >= GNOME_MAX_ORBS;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from localStorage, an external store the server can't see; see comment above.
+    setRescued(saved);
+    if (saved && !readSnailGreeted()) {
+      setShowGreeting(true);
+      markSnailGreeted();
+      window.setTimeout(() => setShowGreeting(false), GREETING_DISPLAY_MS);
+    }
+  }, []);
+
+  if (!rescued) return null;
+
+  return (
+    <div className="pointer-events-none fixed bottom-4 left-1/2 z-10 -translate-x-1/2 sm:bottom-6">
+      {showGreeting && (
+        <div className="absolute bottom-full left-1/2 mb-3 w-64 -translate-x-1/2 border border-neon-dim bg-background/95 px-4 py-3 text-center text-xs text-foreground shadow-[0_0_15px_var(--neon-dim)]">
+          <p>Traveler, you saved my life.</p>
+        </div>
+      )}
+      <ScaredSnail fear={0} />
+    </div>
+  );
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import type { Direction } from "./directions";
 import { ARRIVE_MS, FootstepTrail, LEAVE_MS, type TravelPhase } from "./FootstepTrail";
 
@@ -15,10 +15,12 @@ export function PageTransitionProvider({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const phaseRef = useRef<TravelPhase>("idle");
   const pendingHrefRef = useRef<string | null>(null);
   const [direction, setDirection] = useState<Direction>("up");
   const [phase, setPhase] = useState<TravelPhase>("idle");
+  const [suppressFootsteps, setSuppressFootsteps] = useState(false);
 
   const travel = useCallback<TravelFn>(
     (dir, href) => {
@@ -28,6 +30,9 @@ export function PageTransitionProvider({
       phaseRef.current = "leaving";
       setDirection(dir);
       setPhase("leaving");
+      // The careful room's dangling rope/snail scene doesn't want footstep
+      // dust kicked up over it, whether arriving or leaving.
+      setSuppressFootsteps(pathname === "/careful" || href === "/careful");
 
       window.setTimeout(() => {
         if (pendingHrefRef.current) {
@@ -43,13 +48,13 @@ export function PageTransitionProvider({
         }, ARRIVE_MS);
       }, LEAVE_MS);
     },
-    [router]
+    [router, pathname]
   );
 
   return (
     <TravelContext.Provider value={travel}>
       {children}
-      <FootstepTrail direction={direction} phase={phase} />
+      {!suppressFootsteps && <FootstepTrail direction={direction} phase={phase} />}
     </TravelContext.Provider>
   );
 }

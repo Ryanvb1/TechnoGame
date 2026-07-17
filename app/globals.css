@@ -29,10 +29,25 @@ body {
 
 @keyframes lid-open {
   from {
-    transform: translateX(-50%) translateY(0) rotate(0deg);
+    transform: rotate(0deg);
   }
   to {
-    transform: translateX(-50%) translateY(-12px) rotate(-105deg);
+    transform: rotate(-120deg);
+  }
+}
+
+@keyframes gnome-orb-drop {
+  0% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+  70% {
+    transform: translate(90px, -30px);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(150px, 40px);
+    opacity: 0;
   }
 }
 
@@ -129,6 +144,51 @@ body {
   }
 }
 
+@keyframes smoke-drift {
+  0% {
+    transform: translate(0, 0) scale(0.8);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.3;
+  }
+  100% {
+    transform: translate(12px, -90px) scale(1.4);
+    opacity: 0;
+  }
+}
+
+@keyframes ember-rise {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--ember-drift, 10px), -110px);
+    opacity: 0;
+  }
+}
+
+@keyframes particle-drift {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.6;
+  }
+  90% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translate(var(--particle-dx, 10px), -140px);
+    opacity: 0;
+  }
+}
+
 @keyframes rope-sway {
   0%,
   100% {
@@ -136,5 +196,28 @@ body {
   }
   50% {
     transform: rotate(3deg);
+  }
+}
+
+@keyframes snail-shiver {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-0.6px);
+  }
+  75% {
+    transform: translateX(0.6px);
+  }
+}
+
+@keyframes star-twinkle {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 1;
   }
 }
