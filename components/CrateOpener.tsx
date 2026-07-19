@@ -1,20 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { getDailyCrateItems } from "./crateItems";
 
 type CrateState = "idle" | "opening" | "spinning" | "opened";
-
-type DailyItem = {
-  name: string;
-  price: string;
-  href: string;
-};
-
-const DAILY_ITEMS: DailyItem[] = [
-  { name: "Item One", price: "$--.--", href: "#" },
-  { name: "Item Two", price: "$--.--", href: "#" },
-  { name: "Item Three", price: "$--.--", href: "#" },
-];
 
 const LID_OPEN_MS = 480;
 const SPIN_MS = 1150;
@@ -35,6 +24,7 @@ export function CrateOpener() {
   }
 
   const lidOpen = state !== "idle";
+  const items = getDailyCrateItems();
 
   return (
     <div className="flex flex-col items-center gap-14">
@@ -171,7 +161,7 @@ export function CrateOpener() {
 
       {state === "opened" && (
         <div className="grid w-full grid-cols-1 gap-6 sm:grid-cols-3">
-          {DAILY_ITEMS.map((item, i) => (
+          {items.map((item, i) => (
             <a
               key={item.name}
               href={item.href}
@@ -181,10 +171,14 @@ export function CrateOpener() {
               className="flex touch-manipulation animate-[item-pop-in_0.4s_ease-out_both] flex-col items-center gap-2 border border-neon-dim px-6 py-8 text-center transition-all duration-200 hover:border-neon hover:shadow-[0_0_20px_var(--neon-dim)]"
             >
               <span className="h-10 w-10 rotate-45 bg-neon-dim shadow-[0_0_10px_var(--neon-dim)]" />
+              <span className="text-[0.6rem] uppercase tracking-[0.2em] text-foreground/50">
+                {item.brand}
+              </span>
               <span className="text-sm uppercase tracking-[0.2em] text-neon">
                 {item.name}
               </span>
               <span className="text-xs text-foreground/60">{item.price}</span>
+              <p className="text-xs leading-relaxed text-foreground/70">{item.blurb}</p>
             </a>
           ))}
         </div>

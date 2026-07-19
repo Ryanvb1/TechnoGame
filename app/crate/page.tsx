@@ -7,8 +7,9 @@ export default function CratePage() {
     <SectionShell title="Daily Crate" centered backDirection="left">
       <div className="flex flex-col items-center gap-8">
         <p>
-          Placeholder — one crate drops per day. Click it open to reveal
-          today&apos;s three picks.
+          One crate drops per day — three niche, well-reviewed finds you
+          probably haven&apos;t stumbled across before. Click it open to
+          reveal today&apos;s picks.
         </p>
         <CrateOpener />
       </div>

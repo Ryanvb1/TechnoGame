@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { GNOME_MAX_ORBS, readGnomeOrbs } from "./gnomeProgress";
 import { readSnailGreeted, markSnailGreeted } from "./snailState";
 import { ScaredSnail } from "./ScaredSnail";
+import { ThoughtBubble } from "./ThoughtBubble";
 
 const GREETING_DISPLAY_MS = 4200;
 
@@ -32,9 +33,9 @@ export function HomeSnail() {
   return (
     <div className="pointer-events-none fixed bottom-4 left-1/2 z-10 -translate-x-1/2 sm:bottom-6">
       {showGreeting && (
-        <div className="absolute bottom-full left-1/2 mb-3 w-64 -translate-x-1/2 border border-neon-dim bg-background/95 px-4 py-3 text-center text-xs text-foreground shadow-[0_0_15px_var(--neon-dim)]">
+        <ThoughtBubble className="absolute bottom-full left-1/2 mb-4 w-56 -translate-x-1/2">
           <p>Traveler, you saved my life.</p>
-        </div>
+        </ThoughtBubble>
       )}
       <ScaredSnail fear={0} />
     </div>

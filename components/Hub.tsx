@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { ArrowButton } from "@/components/ArrowButton";
+import { ResetButton } from "@/components/ResetButton";
 import { markTacticViewed, readTacticViewed } from "./tacticState";
 
 export function Hub() {
@@ -12,19 +14,19 @@ export function Hub() {
   // actually repaints the DOM; a lazy useState initializer alone computes
   // the right value but doesn't force hydration to repaint to match it.
   const [viewed, setViewed] = useState(false);
-  const [showMessage, setShowMessage] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from localStorage, an external store the server can't see; see comment above.
     if (readTacticViewed()) setViewed(true);
   }, []);
 
-  function handleTacticClick() {
+  function handleSettingsClick() {
     if (!viewed) {
       setViewed(true);
       markTacticViewed();
     }
-    setShowMessage(true);
+    setShowSettings(true);
   }
 
   return (
@@ -34,28 +36,45 @@ export function Hub() {
         gridTemplateAreas: `". up ." "left hub right" ". down ."`,
       }}
     >
-      {showMessage && (
+      {showSettings && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 px-6 backdrop-blur-sm"
-          onClick={() => setShowMessage(false)}
+          onClick={() => setShowSettings(false)}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="relative flex w-full max-w-xl flex-col items-center gap-6 border border-neon-dim bg-white px-8 py-16 text-center text-black shadow-[0_0_15px_var(--neon-dim),0_0_40px_rgba(57,255,143,0.15)] sm:min-h-[55vh] sm:justify-center"
+            className="relative flex w-full max-w-xs flex-col items-center gap-5 border border-neon-dim bg-background/95 px-8 py-10 text-center shadow-[0_0_15px_var(--neon-dim)]"
           >
-            <span className="text-xs uppercase tracking-[0.5em] text-black/70">
-              Mission
+            <span className="text-xs uppercase tracking-[0.5em] text-neon">
+              Settings
             </span>
-            <p className="max-w-sm text-sm uppercase tracking-[0.2em] text-black">
-              Delay your first usage of nicotine for the day by 1 hour. This
-              act will begin to restore your control.
-            </p>
-            <p className="max-w-sm border-2 border-black bg-neon px-4 py-2 text-xs font-bold uppercase tracking-[0.3em] text-black">
-              This is your Resistance Test.
-            </p>
+            <nav className="flex flex-col gap-4 text-sm uppercase tracking-[0.2em]">
+              <Link
+                href="/about"
+                onClick={() => setShowSettings(false)}
+                className="text-neon-dim transition-colors hover:text-neon"
+              >
+                About
+              </Link>
+              <Link
+                href="/writing"
+                onClick={() => setShowSettings(false)}
+                className="text-neon-dim transition-colors hover:text-neon"
+              >
+                Writing
+              </Link>
+              <Link
+                href="/contact"
+                onClick={() => setShowSettings(false)}
+                className="text-neon-dim transition-colors hover:text-neon"
+              >
+                Contact
+              </Link>
+              <ResetButton />
+            </nav>
             <button
-              onClick={() => setShowMessage(false)}
-              className="touch-manipulation border border-black/60 px-4 py-2 text-[0.65rem] uppercase tracking-[0.3em] text-black transition-colors hover:bg-black hover:text-white"
+              onClick={() => setShowSettings(false)}
+              className="touch-manipulation border border-neon-dim px-4 py-2 text-[0.65rem] uppercase tracking-[0.3em] text-neon-dim transition-colors hover:text-neon"
             >
               Close
             </button>
@@ -67,8 +86,8 @@ export function Hub() {
         className="relative flex items-center justify-center"
       >
         <button
-          onClick={handleTacticClick}
-          aria-label="Mission"
+          onClick={handleSettingsClick}
+          aria-label="Settings"
           className="group relative flex touch-manipulation items-center justify-center outline-none"
         >
           <div
@@ -83,7 +102,7 @@ export function Hub() {
               viewed ? "text-neon-dim" : "text-neon"
             }`}
           >
-            Mission
+            Settings
           </span>
         </button>
       </div>

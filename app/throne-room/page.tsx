@@ -8,7 +8,6 @@ export default function ThroneRoomPage() {
     <SectionShell title="Throne Room" centered backDirection="down">
       <ThroneHallBackground />
       <div className="flex flex-col items-center gap-8">
-        <p>Placeholder — the throne sits empty, atop a distant pile of gold.</p>
         {/* Knight stands beside the pile rather than flowing below it —
             flowing below pushed the page tall enough that he'd render
             past the fold, effectively cut off at the bottom. */}

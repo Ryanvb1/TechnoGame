@@ -16,7 +16,7 @@ function pseudoRandom(seed: number) {
 }
 
 const PILLAR_ROWS = [
-  { heightPct: 40, xPct: 27, width: 30, opacity: 0.85 },
+  { heightPct: 48, xPct: 27, width: 30, opacity: 0.85 },
   { heightPct: 66, xPct: 18, width: 44, opacity: 0.92 },
   { heightPct: 78, xPct: 8, width: 62, opacity: 1 },
 ];

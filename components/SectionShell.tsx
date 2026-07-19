@@ -7,6 +7,10 @@ import { ARROW_CLIP_PATH, type Direction } from "./directions";
 import { useSceneTravel } from "./PageTransition";
 import { GNOME_MAX_ORBS, readGnomeOrbs } from "./gnomeProgress";
 import { ScaredSnail } from "./ScaredSnail";
+import { ThoughtBubble } from "./ThoughtBubble";
+import { markSnailPleaViewed, readSnailPleaViewed } from "./snailState";
+
+const PLEA_DISPLAY_MS = 3200;
 
 // Pins the arrow to the screen edge it points toward. Up/down sit in the
 // top-right/bottom-right corner rather than dead-center — page titles are
@@ -54,11 +58,18 @@ export function SectionShell({
 }) {
   const travel = useSceneTravel();
   const [orbs, setOrbs] = useState(0);
+  const [showPlea, setShowPlea] = useState(false);
 
   useEffect(() => {
     if (backVisual === "rope") {
+      const currentOrbs = readGnomeOrbs();
       // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from localStorage, an external store the server can't see (this page is statically generated).
-      setOrbs(readGnomeOrbs());
+      setOrbs(currentOrbs);
+      if (currentOrbs < GNOME_MAX_ORBS && !readSnailPleaViewed()) {
+        setShowPlea(true);
+        markSnailPleaViewed();
+        window.setTimeout(() => setShowPlea(false), PLEA_DISPLAY_MS);
+      }
     }
   }, [backVisual]);
 
@@ -121,6 +132,11 @@ export function SectionShell({
                   overlap the seam where the rope knots into the ledge,
                   so he visually sits on it rather than replacing it */}
               <div className="absolute bottom-full left-1/2 z-10 mb-[-8px] -translate-x-1/2">
+                {showPlea && (
+                  <ThoughtBubble className="absolute bottom-full left-1/2 mb-3 w-48 -translate-x-1/2">
+                    <p className="font-bold">PLEASE HELP ME!!</p>
+                  </ThoughtBubble>
+                )}
                 <ScaredSnail fear={1 - orbs / GNOME_MAX_ORBS} />
               </div>
             </div>

@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { GNOME_MAX_ORBS, GNOME_STORAGE_KEY, readGnomeOrbs } from "./gnomeProgress";
+import { CatOnBox } from "./CatOnBox";
 
-type Stage = "idle" | "asking" | "yes" | "no" | "full";
+type Stage = "idle" | "menu" | "asking" | "yes" | "no" | "full" | "mission";
 type Variant = "default" | "female";
 
 const RESPONSE_DISPLAY_MS = 2200;
@@ -42,7 +43,7 @@ export function Gnome() {
 
   function handleGnomeClick() {
     if (stage !== "idle") return;
-    setStage("asking");
+    setStage("menu");
   }
 
   function handleYes() {
@@ -64,11 +65,17 @@ export function Gnome() {
     setTimeout(() => setStage("idle"), RESPONSE_DISPLAY_MS);
   }
 
+  function handleTestFill() {
+    setOrbs(GNOME_MAX_ORBS);
+    window.localStorage.setItem(GNOME_STORAGE_KEY, String(GNOME_MAX_ORBS));
+    setStage("idle");
+  }
+
   const fillPercent = (orbs / GNOME_MAX_ORBS) * 100;
   const isFemale = variant === "female";
 
   return (
-    <div className="relative flex items-end justify-center gap-8 pt-20">
+    <div className="relative flex items-end justify-center gap-2 pt-20 sm:gap-8">
       {orbAnimKey > 0 && stage === "yes" && (
         <div
           key={orbAnimKey}
@@ -90,9 +97,13 @@ export function Gnome() {
           against the dirt/grass scene behind it, not just the dim neon
           green that used to blend into the ground */}
       <div className="relative mb-4 flex flex-col items-center">
+        {/* cat perched up above the customize bar, top-left of the scene */}
+        <div className="pointer-events-none absolute bottom-full left-0 mb-3">
+          <CatOnBox />
+        </div>
         <button
           onClick={() => setCustomizeOpen((o) => !o)}
-          className="touch-manipulation border-2 border-[#ffd98a] bg-background/90 px-3 py-2 text-[0.6rem] uppercase tracking-[0.2em] text-[#ffd98a] shadow-[0_0_10px_rgba(0,0,0,0.6)] transition-colors hover:bg-[#ffd98a] hover:text-background"
+          className="touch-manipulation border-2 border-[#ffd98a] bg-background/90 px-1.5 py-1 text-[0.5rem] uppercase tracking-[0.15em] text-[#ffd98a] shadow-[0_0_10px_rgba(0,0,0,0.6)] transition-colors hover:bg-[#ffd98a] hover:text-background sm:px-3 sm:py-2 sm:text-[0.6rem] sm:tracking-[0.2em]"
         >
           Customize
         </button>
@@ -116,7 +127,29 @@ export function Gnome() {
 
       <div className="relative flex flex-col items-center">
         {stage !== "idle" && (
-          <div className="absolute bottom-full mb-4 w-64 border border-neon-dim bg-background/95 px-4 py-3 text-center text-xs text-foreground shadow-[0_0_15px_var(--neon-dim)]">
+          <div className="absolute bottom-full mb-4 w-72 border border-neon-dim bg-background/95 px-4 py-3 text-center text-xs text-foreground shadow-[0_0_15px_var(--neon-dim)]">
+            {stage === "menu" && (
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => setStage("mission")}
+                  className="touch-manipulation uppercase tracking-[0.2em] text-neon transition-colors hover:text-white"
+                >
+                  Mission
+                </button>
+                <button
+                  onClick={() => setStage("asking")}
+                  className="touch-manipulation uppercase tracking-[0.2em] text-neon transition-colors hover:text-white"
+                >
+                  Check In
+                </button>
+                <button
+                  onClick={handleTestFill}
+                  className="touch-manipulation uppercase tracking-[0.2em] text-neon-dim transition-colors hover:text-neon"
+                >
+                  Test Fill
+                </button>
+              </div>
+            )}
             {stage === "asking" && (
               <>
                 <p className="mb-3">Did you complete your resistance test?</p>
@@ -135,6 +168,24 @@ export function Gnome() {
                   </button>
                 </div>
               </>
+            )}
+            {stage === "mission" && (
+              <div className="flex flex-col gap-3">
+                <p className="uppercase tracking-[0.4em] text-neon">Mission</p>
+                <p>
+                  Delay your first usage of nicotine for the day by 1 hour.
+                  This act will begin to restore your control.
+                </p>
+                <p className="font-bold uppercase tracking-[0.15em] text-neon-dim">
+                  This is your Resistance Test.
+                </p>
+                <button
+                  onClick={() => setStage("idle")}
+                  className="touch-manipulation uppercase tracking-[0.2em] text-neon-dim transition-colors hover:text-neon"
+                >
+                  Close
+                </button>
+              </div>
             )}
             {stage === "yes" && <p>Well done. Keep going.</p>}
             {stage === "no" && <p>Return to me when you have progressed.</p>}
@@ -349,7 +400,7 @@ export function Gnome() {
         </button>
       </div>
 
-      <div className="relative h-48 w-12 border border-white/30 bg-white/5">
+      <div className="relative h-36 w-8 border border-white/30 bg-white/5 sm:h-48 sm:w-12">
         <div
           className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-sky-500 to-sky-300 shadow-[0_0_12px_rgba(56,189,248,0.6)] transition-[height] duration-500 ease-out"
           style={{ height: `${fillPercent}%` }}
