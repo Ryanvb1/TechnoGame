@@ -20,7 +20,12 @@ export function PageTransitionProvider({
   const pendingHrefRef = useRef<string | null>(null);
   const [direction, setDirection] = useState<Direction>("up");
   const [phase, setPhase] = useState<TravelPhase>("idle");
-  const [suppressFootsteps, setSuppressFootsteps] = useState(false);
+  // Tracked separately per leg of the trip: the pit and throne room should
+  // never show footsteps once you've actually arrived in them, but the
+  // walk leaving whatever room you departed FROM (toward one of them) is
+  // a different leg and still plays normally.
+  const [suppressLeaving, setSuppressLeaving] = useState(false);
+  const [suppressArriving, setSuppressArriving] = useState(false);
 
   const travel = useCallback<TravelFn>(
     (dir, href) => {
@@ -30,9 +35,12 @@ export function PageTransitionProvider({
       phaseRef.current = "leaving";
       setDirection(dir);
       setPhase("leaving");
-      // The careful room's dangling rope/snail scene doesn't want footstep
-      // dust kicked up over it, whether arriving or leaving.
-      setSuppressFootsteps(pathname === "/careful" || href === "/careful");
+      // Leaving the pit/throne room stays silent (no dust kicked up over
+      // the pit's dangling rope/snail scene, and leaving the throne room
+      // should feel like a clean cut); arriving in either should never
+      // show trailing footsteps once the scene has actually cut over.
+      setSuppressLeaving(pathname === "/careful" || pathname === "/throne-room");
+      setSuppressArriving(href === "/careful" || href === "/throne-room");
 
       window.setTimeout(() => {
         if (pendingHrefRef.current) {
@@ -51,10 +59,12 @@ export function PageTransitionProvider({
     [router, pathname]
   );
 
+  const suppressed = phase === "leaving" ? suppressLeaving : phase === "arriving" ? suppressArriving : false;
+
   return (
     <TravelContext.Provider value={travel}>
       {children}
-      {!suppressFootsteps && <FootstepTrail direction={direction} phase={phase} />}
+      {!suppressed && <FootstepTrail direction={direction} phase={phase} />}
     </TravelContext.Provider>
   );
 }

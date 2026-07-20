@@ -4,11 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { GNOME_MAX_ORBS, readGnomeOrbs } from "./gnomeProgress";
 import { KnightFigure } from "./KnightFigure";
+import { readKnightDefeated } from "./throneState";
 
 type Stage = "idle" | "challenge";
 
 export function Knight() {
-  const [visible] = useState(() => readGnomeOrbs() >= GNOME_MAX_ORBS);
+  const [visible] = useState(() => readGnomeOrbs() >= GNOME_MAX_ORBS && !readKnightDefeated());
   const [stage, setStage] = useState<Stage>("idle");
   const router = useRouter();
 

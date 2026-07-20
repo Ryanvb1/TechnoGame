@@ -4,7 +4,7 @@ import { FirePit } from "@/components/FirePit";
 export default function CarefulPage() {
   return (
     <SectionShell
-      title="Careful"
+      title="The Pit"
       centered
       backDirection="up"
       backVisual="rope"

@@ -13,8 +13,14 @@ export function ThoughtBubble({
   children: React.ReactNode;
   className?: string;
 }) {
+  // No hardcoded position class here — the caller's own className always
+  // supplies one (absolute, in both current uses). Tailwind's stylesheet
+  // orders `.relative` after `.absolute`, so if both were present here,
+  // `.relative` would win the cascade and pull this out of the caller's
+  // intended positioning, back into normal flow (pushing sibling elements
+  // like the snail it floats above instead of just overlaying them).
   return (
-    <div className={`relative ${className}`}>
+    <div className={className}>
       {/* cloud puffs along the top edge, overlapping the body so the seam
           doesn't show */}
       <div

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { getDailyCrateItems } from "./crateItems";
+import { addRainbowBalls, rollRainbowBallDrop } from "./rainbowBalls";
+import { RainbowBallPile } from "./RainbowBallPile";
 
 type CrateState = "idle" | "opening" | "spinning" | "opened";
 
@@ -13,18 +14,24 @@ const ORB_ANGLES = [0, 120, 240];
 
 export function CrateOpener() {
   const [state, setState] = useState<CrateState>("idle");
+  const [drop, setDrop] = useState(0);
+  const [total, setTotal] = useState(0);
 
   function handleOpen() {
     if (state !== "idle") return;
     setState("opening");
     setTimeout(() => {
       setState("spinning");
-      setTimeout(() => setState("opened"), SPIN_MS);
+      setTimeout(() => {
+        const amount = rollRainbowBallDrop();
+        setDrop(amount);
+        setTotal(addRainbowBalls(amount));
+        setState("opened");
+      }, SPIN_MS);
     }, LID_OPEN_MS);
   }
 
   const lidOpen = state !== "idle";
-  const items = getDailyCrateItems();
 
   return (
     <div className="flex flex-col items-center gap-14">
@@ -160,27 +167,14 @@ export function CrateOpener() {
       </button>
 
       {state === "opened" && (
-        <div className="grid w-full grid-cols-1 gap-6 sm:grid-cols-3">
-          {items.map((item, i) => (
-            <a
-              key={item.name}
-              href={item.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ animationDelay: `${i * 150}ms` }}
-              className="flex touch-manipulation animate-[item-pop-in_0.4s_ease-out_both] flex-col items-center gap-2 border border-neon-dim px-6 py-8 text-center transition-all duration-200 hover:border-neon hover:shadow-[0_0_20px_var(--neon-dim)]"
-            >
-              <span className="h-10 w-10 rotate-45 bg-neon-dim shadow-[0_0_10px_var(--neon-dim)]" />
-              <span className="text-[0.6rem] uppercase tracking-[0.2em] text-foreground/50">
-                {item.brand}
-              </span>
-              <span className="text-sm uppercase tracking-[0.2em] text-neon">
-                {item.name}
-              </span>
-              <span className="text-xs text-foreground/60">{item.price}</span>
-              <p className="text-xs leading-relaxed text-foreground/70">{item.blurb}</p>
-            </a>
-          ))}
+        <div className="flex animate-[item-pop-in_0.4s_ease-out_both] flex-col items-center gap-3">
+          <RainbowBallPile />
+          <p className="text-2xl font-bold uppercase tracking-[0.15em] text-neon drop-shadow-[0_0_10px_var(--neon)]">
+            +{drop} Rainbow Balls
+          </p>
+          <p className="text-xs uppercase tracking-[0.3em] text-foreground/50">
+            {total.toLocaleString()} total
+          </p>
         </div>
       )}
     </div>

@@ -46,6 +46,7 @@ export function SectionShell({
   backDirection = "left",
   backVisual = "arrow",
   hideTitle = false,
+  titleInvisible = false,
   hideBackLabel = false,
 }: {
   title: string;
@@ -54,6 +55,11 @@ export function SectionShell({
   backDirection?: Direction;
   backVisual?: "arrow" | "rope";
   hideTitle?: boolean;
+  // Unlike hideTitle (which omits the h1 entirely, and so drops the
+  // vertical space it was occupying), this keeps the h1's layout box in
+  // place and just hides its rendering — for scenes tuned to sit at a
+  // specific position that would otherwise shift when the title's gone.
+  titleInvisible?: boolean;
   hideBackLabel?: boolean;
 }) {
   const travel = useSceneTravel();
@@ -156,7 +162,11 @@ export function SectionShell({
         )}
       </Link>
       {!hideTitle && (
-        <h1 className="text-4xl font-bold uppercase tracking-widest text-neon sm:text-6xl">
+        <h1
+          className={`text-4xl font-bold uppercase tracking-widest text-neon sm:text-6xl ${
+            titleInvisible ? "invisible" : ""
+          }`}
+        >
           {title}
         </h1>
       )}

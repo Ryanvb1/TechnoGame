@@ -189,6 +189,56 @@ body {
   }
 }
 
+@keyframes molotov-wiggle {
+  0%,
+  100% {
+    transform: rotate(-6deg);
+  }
+  50% {
+    transform: rotate(6deg);
+  }
+}
+
+@keyframes molotov-throw {
+  0% {
+    transform: translate(0, 0) rotate(0deg) scale(1);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(70px, -180px) rotate(480deg) scale(0.35);
+    opacity: 0;
+  }
+}
+
+@keyframes pillar-climb {
+  0% {
+    bottom: 0%;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    bottom: 14%;
+    opacity: 1;
+  }
+}
+
+@keyframes pillar-fire-warn {
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+}
+
 @keyframes rope-sway {
   0%,
   100% {
@@ -228,6 +278,35 @@ body {
   }
   100% {
     transform: rotate(0deg) translateY(0);
+  }
+}
+
+@keyframes toad-rise {
+  0% {
+    transform: translateY(35%) scaleY(0.25);
+    opacity: 0;
+  }
+  55% {
+    opacity: 1;
+  }
+  75% {
+    transform: translateY(-4%) scaleY(1.06);
+  }
+  100% {
+    transform: translateY(0) scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes toad-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.1);
   }
 }
 

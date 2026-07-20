@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowButton } from "@/components/ArrowButton";
 import { ResetButton } from "@/components/ResetButton";
+import { RainbowBallCounter } from "./RainbowBallCounter";
 import { markTacticViewed, readTacticViewed } from "./tacticState";
 
 export function Hub() {
@@ -36,6 +37,7 @@ export function Hub() {
         gridTemplateAreas: `". up ." "left hub right" ". down ."`,
       }}
     >
+      <RainbowBallCounter />
       {showSettings && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 px-6 backdrop-blur-sm"
@@ -112,14 +114,14 @@ export function Hub() {
         label="Throne Room"
         disabled={!viewed}
       />
-      <ArrowButton direction="right" href="/crate" label="Crate" disabled={!viewed} />
+      <ArrowButton direction="right" href="/crate" label="Kiosk" disabled={!viewed} />
       <ArrowButton
         direction="down"
         href="/careful"
-        label="Careful"
+        label="The Pit"
         disabled={!viewed}
       />
-      <ArrowButton direction="left" href="/nicotine" label="Gnome" disabled={!viewed} />
+      <ArrowButton direction="left" href="/nicotine" label="Fairyland" disabled={!viewed} />
     </div>
   );
 }

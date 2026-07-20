@@ -5,9 +5,10 @@ import type { KeyboardEvent, PointerEvent } from "react";
 import Link from "next/link";
 import { KnightFigure } from "./KnightFigure";
 import { FightBackground } from "./FightBackground";
+import { markKnightDefeated } from "./throneState";
 
 type Stage = "fighting" | "won" | "lost";
-type ShieldPhase = "idle" | "telegraph" | "active";
+type ShieldPhase = "idle" | "telegraph" | "active" | "lowering";
 
 const MAX_HEALTH = 450;
 
@@ -22,15 +23,22 @@ const KNIGHT_MOVE_MAX_MS = 2200;
 const HEART_X = 10;
 const HIT_RADIUS = 10;
 const DEFLECT_Y = 24;
+// Where the shield hovers, in arena-relative %, independent of DEFLECT_Y —
+// derived from the knight's actual (unscaled) 291px total figure height
+// sitting bottom-anchored in the arena: at both the mobile and desktop
+// --kscale values his helmet-top lands right around 58-59% down, so the
+// shield sits just above that.
+const SHIELD_Y = 55;
 
 const TICK_MS = 150;
 const KNIGHT_TICK_DAMAGE = 4;
-const PLAYER_TICK_DAMAGE = 7.5;
+const PLAYER_TICK_DAMAGE = 9;
 
 const TELEGRAPH_MS = 450;
-const SHIELD_ACTIVE_MS = 1100;
-const SHIELD_COOLDOWN_MIN_MS = 2200;
-const SHIELD_COOLDOWN_MAX_MS = 4200;
+const SHIELD_ACTIVE_MS = 1540; // 1100 * 1.4
+const SHIELD_LOWER_MS = 500;
+const SHIELD_COOLDOWN_MIN_MS = 1000;
+const SHIELD_COOLDOWN_MAX_MS = 4800;
 
 export function FightScene() {
   const [playerHealth, setPlayerHealth] = useState(MAX_HEALTH);
@@ -57,6 +65,7 @@ export function FightScene() {
   }, [shieldPhase]);
   useEffect(() => {
     stageRef.current = stage;
+    if (stage === "won") markKnightDefeated();
   }, [stage]);
 
   const updateBeamFromClientX = useCallback((clientX: number) => {
@@ -89,6 +98,7 @@ export function FightScene() {
     if (stage !== "fighting") return;
     let telegraphTimer: number;
     let activeTimer: number;
+    let lowerTimer: number;
     let cooldownTimer: number;
 
     function scheduleNext() {
@@ -102,8 +112,12 @@ export function FightScene() {
           setShieldPhase("active");
           activeTimer = window.setTimeout(() => {
             if (stageRef.current !== "fighting") return;
-            setShieldPhase("idle");
-            scheduleNext();
+            setShieldPhase("lowering");
+            lowerTimer = window.setTimeout(() => {
+              if (stageRef.current !== "fighting") return;
+              setShieldPhase("idle");
+              scheduleNext();
+            }, SHIELD_LOWER_MS);
           }, SHIELD_ACTIVE_MS);
         }, TELEGRAPH_MS);
       }, delay);
@@ -113,6 +127,7 @@ export function FightScene() {
     return () => {
       window.clearTimeout(telegraphTimer);
       window.clearTimeout(activeTimer);
+      window.clearTimeout(lowerTimer);
       window.clearTimeout(cooldownTimer);
     };
   }, [stage]);
@@ -160,6 +175,12 @@ export function FightScene() {
     return () => window.clearInterval(id);
   }, [stage]);
 
+  function instaKill() {
+    if (stage !== "fighting") return;
+    setKnightHealth(0);
+    setStage("won");
+  }
+
   function reset() {
     setPlayerHealth(MAX_HEALTH);
     setKnightHealth(MAX_HEALTH);
@@ -196,10 +217,18 @@ export function FightScene() {
       </div>
 
       {stage === "fighting" && (
-        <p className="max-w-md text-center text-[0.65rem] uppercase tracking-[0.2em] text-foreground/50">
-          Move to aim the beam at the knight. Pull it off him when his shield
-          rises, or he&apos;ll bounce it straight into you.
-        </p>
+        <div className="flex flex-col items-center gap-2">
+          <p className="max-w-md text-center text-[0.65rem] uppercase tracking-[0.2em] text-foreground/50">
+            Move to aim the beam at the knight. Pull it off him when his
+            shield rises, or he&apos;ll bounce it straight into you.
+          </p>
+          <button
+            onClick={instaKill}
+            className="touch-manipulation text-[0.55rem] uppercase tracking-[0.2em] text-foreground/30 transition-colors hover:text-foreground/60"
+          >
+            Insta-Kill (test)
+          </button>
+        </div>
       )}
 
       <div
@@ -213,7 +242,7 @@ export function FightScene() {
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onKeyDown={handleKeyDown}
-        className="relative h-[300px] w-full max-w-2xl touch-none outline-none sm:h-[380px]"
+        className="relative h-[300px] w-full max-w-2xl touch-none outline-none [--kscale:0.42] sm:h-[380px] sm:[--kscale:0.55]"
       >
         {/* overhead rail the emitter rides along */}
         <div className="absolute inset-x-0 top-0 h-[3px] bg-neon-dim/50 shadow-[0_0_8px_var(--neon-dim)]" />
@@ -265,16 +294,15 @@ export function FightScene() {
           <Heart hit={deflecting} />
         </div>
 
-        {/* the shield, floating at head height — only visible while
-            telegraphing or actively blocking */}
-        {shieldPhase !== "idle" && (
-          <Shield phase={shieldPhase} x={knightX} y={DEFLECT_Y} />
-        )}
+        {/* the shield — always mounted (even at rest, invisible down by his
+            side) so phase changes animate as a continuous raise/lower
+            instead of popping in and out */}
+        <Shield phase={shieldPhase} x={knightX} y={SHIELD_Y} />
 
         {/* the knight, mirrored to face the player's side, shuffling side
             to side to dodge the beam */}
         <div
-          className="absolute bottom-0 -translate-x-1/2 transition-[left] duration-[800ms] ease-in-out [--kscale:0.42] sm:[--kscale:0.55]"
+          className="absolute bottom-0 -translate-x-1/2 transition-[left] duration-[800ms] ease-in-out"
           style={{ left: `${knightX}%` }}
         >
           <div
@@ -359,21 +387,41 @@ function Heart({ hit }: { hit: boolean }) {
   );
 }
 
+// Per-phase resting pose for the shield arm: how far down/rotated it sits
+// (as if tucked at his side) versus raised overhead, and how long the
+// transition into that phase should take — so raising and lowering read as
+// a deliberate arm motion instead of a plain opacity fade.
+const SHIELD_POSE: Record<ShieldPhase, { dropPx: number; rotateDeg: number; opacity: number; ms: number }> = {
+  idle: { dropPx: 26, rotateDeg: 16, opacity: 0, ms: 200 },
+  telegraph: { dropPx: 6, rotateDeg: 4, opacity: 0.8, ms: TELEGRAPH_MS },
+  active: { dropPx: 0, rotateDeg: 0, opacity: 1, ms: 160 },
+  lowering: { dropPx: 26, rotateDeg: 16, opacity: 0, ms: SHIELD_LOWER_MS },
+};
+
 function Shield({ phase, x, y }: { phase: ShieldPhase; x: number; y: number }) {
   const active = phase === "active";
+  const pose = SHIELD_POSE[phase];
   return (
     <div
-      className="absolute -translate-x-1/2 -translate-y-1/2 transition-all duration-200"
+      className="absolute"
       style={{
         left: `${x}%`,
         top: `${y}%`,
-        width: 30,
-        height: 38,
+        // sized directly off the knight's own torso width (116px unscaled)
+        // via the shared --kscale custom property, so it always covers
+        // exactly his body's width regardless of viewport
+        width: "calc(116px * var(--kscale))",
+        height: "calc(38px * var(--kscale))",
+        transform: `translate(-50%, calc(-50% + ${pose.dropPx}px)) rotate(${pose.rotateDeg}deg)`,
+        transformOrigin: "50% 100%",
+        transitionProperty: "transform, opacity, background, box-shadow",
+        transitionDuration: `${pose.ms}ms`,
+        transitionTimingFunction: "ease-in-out",
+        opacity: pose.opacity,
         clipPath: "polygon(50% 0%, 100% 18%, 92% 70%, 50% 100%, 8% 70%, 0% 18%)",
         background: active
           ? "linear-gradient(160deg, #f0f4f8 0%, #b7c0ca 45%, #6b737c 100%)"
           : "linear-gradient(160deg, #b7c0ca 0%, #8a929c 45%, #4b525a 100%)",
-        opacity: active ? 1 : 0.45,
         boxShadow: active ? "0 0 16px rgba(255,255,255,0.8), 0 0 28px #ff4d4d" : "none",
       }}
     />

@@ -1,4 +1,6 @@
 import { DIRECTION_AXIS, DIRECTION_SIGN, type Direction } from "./directions";
+import { FootprintIcon } from "./FootprintIcon";
+import { readFootstepColor } from "./footstepColor";
 
 export type TravelPhase = "idle" | "leaving" | "arriving";
 
@@ -38,6 +40,7 @@ export function FootstepTrail({
 }) {
   if (phase === "idle") return null;
 
+  const color = readFootstepColor();
   const axis = DIRECTION_AXIS[direction];
   const sign = DIRECTION_SIGN[direction];
   const isLeaving = phase === "leaving";
@@ -84,19 +87,7 @@ export function FootstepTrail({
                 animation: `footstep-fade ${stepDuration}ms ease-out ${delay}ms both`,
               }}
             >
-              <svg
-                width="16"
-                height="26"
-                viewBox="0 0 16 26"
-                fill="none"
-                style={{
-                  filter:
-                    "drop-shadow(0 0 5px var(--neon)) drop-shadow(0 0 12px var(--neon-dim))",
-                }}
-              >
-                <ellipse cx="8" cy="7" rx="6" ry="7" fill="var(--neon)" />
-                <ellipse cx="8" cy="19" rx="5" ry="6" fill="var(--neon)" />
-              </svg>
+              <FootprintIcon color={color} />
             </div>
           </div>
         );

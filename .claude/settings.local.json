@@ -28,7 +28,12 @@
       "WebFetch(domain:zippo.com)",
       "WebFetch(domain:www.grayl.com)",
       "WebFetch(domain:baratza.com)",
-      "WebFetch(domain:www.gerbergear.com)"
+      "WebFetch(domain:www.gerbergear.com)",
+      "Read(//e/Users/rvb/Coding projects/Techno Website/**)",
+      "Bash(curl -s http://localhost:49813/throne-room)",
+      "Bash(curl -s http://localhost:49813/throne-room -o /tmp/throne.html)",
+      "Bash(gh --version)",
+      "Bash(gh auth *)"
     ]
   }
 }
