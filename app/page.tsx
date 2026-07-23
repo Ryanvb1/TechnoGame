@@ -14,9 +14,6 @@ export default function Home() {
         }}
       />
       <AmbientDetails />
-      <p className="relative z-10 text-xs uppercase tracking-[0.5em] text-neon-dim">
-        Choose a direction
-      </p>
       <Hub />
       <HomeSnail />
     </main>

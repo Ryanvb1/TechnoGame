@@ -1,8 +1,15 @@
+// The same rainbow sweep used everywhere else the site's currency shows
+// up (RainbowBallCounter, RainbowShellIcon) — his default shell, once the
+// Rainbow Shell from the toad fight is equipped (see inventory.ts,
+// Locker.tsx), is styled to match rather than invent a second "rainbow".
+const RAINBOW_SHELL_BACKGROUND =
+  "conic-gradient(from 180deg, #ff4d4d, #ff9f43, #ffe066, #6bcf6b, #4dabf7, #7c5cff, #ff6ec7, #ff4d4d)";
+
 // A cheerful cartoon snail (think Snail Bob), seen from the side so the
 // shell + elongated body read clearly as a snail. `fear` (0 = safe,
 // 1 = terrified) drives the pupils and mouth curve mainly, plus a slight
 // nervous shake once he's close to the flames.
-export function ScaredSnail({ fear }: { fear: number }) {
+export function ScaredSnail({ fear, rainbowShell = false }: { fear: number; rainbowShell?: boolean }) {
   const pupilScale = 0.8 + fear * 0.45;
   const isScared = fear > 0.5;
   const shiver = fear > 0.75;
@@ -27,14 +34,15 @@ export function ScaredSnail({ fear }: { fear: number }) {
         className="absolute left-0 top-0 h-10 w-10"
         style={{
           clipPath: "circle(50% at 50% 50%)",
-          background:
-            "repeating-conic-gradient(from -25deg, #e8a659 0deg 20deg, #b9723a 20deg 40deg)",
+          background: rainbowShell
+            ? RAINBOW_SHELL_BACKGROUND
+            : "repeating-conic-gradient(from -25deg, #e8a659 0deg 20deg, #b9723a 20deg 40deg)",
           boxShadow: "0 3px 6px rgba(0,0,0,0.4), inset 0 0 10px rgba(0,0,0,0.35)",
         }}
       >
         <div
           className="absolute left-1/2 top-1/2 h-[10px] w-[10px] -translate-x-1/2 -translate-y-1/2"
-          style={{ clipPath: "circle(50% at 50% 50%)", background: "#7a4423" }}
+          style={{ clipPath: "circle(50% at 50% 50%)", background: rainbowShell ? "#20141f" : "#7a4423" }}
         />
         <div
           className="absolute left-[20%] top-[16%] h-3 w-4"

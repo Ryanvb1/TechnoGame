@@ -1,5 +1,7 @@
 "use client";
 
+import type { CSSProperties, Ref } from "react";
+
 // Sits quietly in the gold pile at all times, blending into its tones,
 // until the toad rises — then it wiggles and picks up a white outline as
 // an affordance that it's the thing to click. Clicking it throws it (an
@@ -8,15 +10,26 @@ export function Molotov({
   active,
   thrown,
   onClick,
+  originRef,
+  target,
 }: {
   active: boolean;
   thrown: boolean;
   onClick: () => void;
+  // Exposes this element's real screen position so the throw can be aimed
+  // at the toad's actual (measured) mouth position.
+  originRef?: Ref<HTMLDivElement>;
+  // The measured distance from here to the toad's mouth, in px — computed
+  // by the parent via getBoundingClientRect since the two live in
+  // unrelated layout containers with no shared percentage space. Falls
+  // back to a rough guess (see the molotov-throw keyframe) if a
+  // measurement isn't available yet.
+  target?: { dx: number; dy: number } | null;
 }) {
   const interactive = active && !thrown;
 
   return (
-    <div className="absolute" style={{ left: "27%", bottom: "33%", width: 24, height: 38 }}>
+    <div ref={originRef} className="absolute" style={{ left: "27%", bottom: "33%", width: 24, height: 38 }}>
       <button
         onClick={interactive ? onClick : undefined}
         aria-label="Molotov cocktail"
@@ -32,6 +45,9 @@ export function Molotov({
               ? "drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 5px rgba(255,255,255,0.8))"
               : "none",
             animation: thrown ? "molotov-throw 550ms ease-in forwards" : undefined,
+            ...(target
+              ? ({ "--molotov-dx": `${target.dx}px`, "--molotov-dy": `${target.dy}px` } as CSSProperties)
+              : {}),
           }}
         >
           {/* rag */}

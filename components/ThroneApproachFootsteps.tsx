@@ -5,10 +5,9 @@ import { FootprintIcon } from "./FootprintIcon";
 import { readFootstepColor } from "./footstepColor";
 
 const STEP_COUNT = 7;
-// Slowed further still — a long, deliberate gap between each print rather
-// than a walking pace.
-const STEP_STAGGER_MS = 1000;
-const STEP_FADE_MS = 1400;
+// A deliberate gap between each print rather than a walking pace.
+const STEP_STAGGER_MS = 667;
+const STEP_FADE_MS = 933;
 export const APPROACH_TOTAL_MS = (STEP_COUNT - 1) * STEP_STAGGER_MS + STEP_FADE_MS;
 
 const STEP_OFFSET = 9; // px each print alternates side to side (left/right foot)

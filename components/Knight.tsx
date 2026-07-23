@@ -1,15 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { GNOME_MAX_ORBS, readGnomeOrbs } from "./gnomeProgress";
 import { KnightFigure } from "./KnightFigure";
-import { readKnightDefeated } from "./throneState";
+import { BossFightStartMenu } from "./BossFightStartMenu";
+import { ReplayMissionButton } from "./ReplayMissionButton";
+import { markKnightDefeated, readKnightDefeated } from "./throneState";
+import { readSnailRescued } from "./snailState";
 
 type Stage = "idle" | "challenge";
 
 export function Knight() {
-  const [visible] = useState(() => readGnomeOrbs() >= GNOME_MAX_ORBS && !readKnightDefeated());
+  const [visible] = useState(() => readSnailRescued() && !readKnightDefeated());
   const [stage, setStage] = useState<Stage>("idle");
   const router = useRouter();
 
@@ -23,25 +25,24 @@ export function Knight() {
   return (
     <div className="relative flex flex-col items-center">
       {stage === "challenge" && (
-        <div className="absolute bottom-full mb-4 w-64 border border-neon-dim bg-background/95 px-4 py-3 text-center text-xs text-foreground shadow-[0_0_15px_var(--neon-dim)]">
-          <div className="flex flex-col gap-3">
-            <p>You are a strong warrior, but the throne must be won.</p>
-            <div className="flex justify-center gap-6">
-              <button
-                onClick={() => router.push("/throne-room/fight")}
-                className="touch-manipulation uppercase tracking-[0.15em] text-neon transition-colors hover:text-white"
-              >
-                Begin Fight
-              </button>
-              <button
-                onClick={() => setStage("idle")}
-                className="touch-manipulation uppercase tracking-[0.15em] text-neon-dim transition-colors hover:text-neon"
-              >
-                Retreat
-              </button>
-            </div>
-          </div>
-        </div>
+        <BossFightStartMenu
+          title="The Knight"
+          concept="easy"
+          gameplay="hard"
+          rewardRarity="rare"
+          onBegin={() => router.push("/throne-room/fight")}
+          onBack={() => setStage("idle")}
+          // Marks him defeated and reloads — the whole throne room's
+          // layout (the throne itself, pillars, molotov) all key off
+          // knightDefeated read once at mount, in multiple components
+          // that don't otherwise talk to each other, so a hard reload is
+          // the simplest way to get every one of them to agree on the new
+          // state rather than threading a callback through all of them.
+          onInstaComplete={() => {
+            markKnightDefeated();
+            window.location.reload();
+          }}
+        />
       )}
 
       {/* button is wider than the armor so the sword — nested in a wrapper
@@ -57,5 +58,41 @@ export function Knight() {
         <KnightFigure />
       </button>
     </div>
+  );
+}
+
+// Once he's defeated for good, the figure itself gets swapped out of the
+// scene for the throne/molotov setup (see ThroneRoomScene) — there's
+// nowhere left to click him. This is the replacement: a top-pinned
+// trigger, rendered unconditionally alongside that swap so it's fully
+// decoupled from it, that brings the exact same briefing back up rather
+// than jumping straight back into the fight.
+export function KnightReplayTrigger() {
+  const [defeated, setDefeated] = useState(false);
+  const [stage, setStage] = useState<Stage>("idle");
+  const router = useRouter();
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from localStorage, an external store the server can't see; see the same pattern throughout the site.
+    setDefeated(readKnightDefeated());
+  }, []);
+
+  if (!defeated) return null;
+
+  return (
+    <>
+      {stage === "idle" && <ReplayMissionButton onClick={() => setStage("challenge")} />}
+      {stage === "challenge" && (
+        <BossFightStartMenu
+          title="The Knight"
+          concept="easy"
+          gameplay="hard"
+          rewardRarity="rare"
+          onBegin={() => router.push("/throne-room/fight")}
+          onBack={() => setStage("idle")}
+          onInstaComplete={() => setStage("idle")}
+        />
+      )}
+    </>
   );
 }

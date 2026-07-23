@@ -33,7 +33,13 @@
       "Bash(curl -s http://localhost:49813/throne-room)",
       "Bash(curl -s http://localhost:49813/throne-room -o /tmp/throne.html)",
       "Bash(gh --version)",
-      "Bash(gh auth *)"
+      "Bash(gh auth *)",
+      "Bash(lsof -ti:3000)",
+      "Bash(xargs -r kill)",
+      "Bash(curl -s http://localhost:3000/throne-room/fight -o /dev/null -w \"%{http_code}\\\\n\")",
+      "Bash(curl -s http://localhost:3000/throne-room/fight)",
+      "Bash(npx eslint *)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }

@@ -18,12 +18,6 @@ export function AmbientDetails() {
       <div className="absolute right-4 top-4 h-7 w-7 border-r border-t border-neon-dim/40 sm:right-6 sm:top-6 sm:h-9 sm:w-9" />
       <div className="absolute bottom-4 left-4 h-7 w-7 border-b border-l border-neon-dim/40 sm:bottom-6 sm:left-6 sm:h-9 sm:w-9" />
 
-      {/* status readout, bottom-right */}
-      <div className="absolute bottom-4 right-4 flex items-center gap-2 text-[0.55rem] uppercase tracking-[0.3em] text-neon-dim/60 sm:bottom-6 sm:right-6">
-        <span className="h-1.5 w-1.5 animate-pulse bg-neon shadow-[0_0_6px_var(--neon)]" />
-        System Online
-      </div>
-
       {/* ambient drifting motes */}
       {PARTICLES.map((p, i) => (
         <div

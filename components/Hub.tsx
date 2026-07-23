@@ -5,7 +5,11 @@ import Link from "next/link";
 import { ArrowButton } from "@/components/ArrowButton";
 import { ResetButton } from "@/components/ResetButton";
 import { RainbowBallCounter } from "./RainbowBallCounter";
+import { Cave } from "./Cave";
+import { Airport } from "./Airport";
 import { markTacticViewed, readTacticViewed } from "./tacticState";
+import { readSnailRescued } from "./snailState";
+import { readOrbMissionCompleted } from "./gnomeProgress";
 
 export function Hub() {
   // This page is statically generated, so the server/build-time HTML always
@@ -16,10 +20,20 @@ export function Hub() {
   // the right value but doesn't force hydration to repaint to match it.
   const [viewed, setViewed] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  // The Pit and Settings are open from the very start; Kiosk and Fairyland
+  // unlock once the snail's been pulled to safety (see SnailRescueRope).
+  // The Throne Room unlocks only once the orb mission is actually handed
+  // in to the gnome (see completeOrbMission in gnomeProgress.ts) — a full
+  // tube alone isn't enough, since the tube also fills from ordinary daily
+  // check-ins that have nothing to do with the orb hunt.
+  const [snailRescued, setSnailRescued] = useState(false);
+  const [throneUnlocked, setThroneUnlocked] = useState(false);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from localStorage, an external store the server can't see; see comment above.
     if (readTacticViewed()) setViewed(true);
+    setSnailRescued(readSnailRescued());
+    setThroneUnlocked(readOrbMissionCompleted());
   }, []);
 
   function handleSettingsClick() {
@@ -38,6 +52,8 @@ export function Hub() {
       }}
     >
       <RainbowBallCounter />
+      <Cave />
+      <Airport />
       {showSettings && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 px-6 backdrop-blur-sm"
@@ -108,20 +124,10 @@ export function Hub() {
           </span>
         </button>
       </div>
-      <ArrowButton
-        direction="up"
-        href="/throne-room"
-        label="Throne Room"
-        disabled={!viewed}
-      />
-      <ArrowButton direction="right" href="/crate" label="Kiosk" disabled={!viewed} />
-      <ArrowButton
-        direction="down"
-        href="/careful"
-        label="The Pit"
-        disabled={!viewed}
-      />
-      <ArrowButton direction="left" href="/nicotine" label="Fairyland" disabled={!viewed} />
+      <ArrowButton direction="up" href="/throne-room" label="Throne Room" disabled={!throneUnlocked} />
+      <ArrowButton direction="right" href="/crate" label="Kiosk" disabled={!snailRescued} />
+      <ArrowButton direction="down" href="/careful" label="The Pit" />
+      <ArrowButton direction="left" href="/nicotine" label="Fairyland" disabled={!snailRescued} />
     </div>
   );
 }

@@ -1,10 +1,12 @@
+import type { Ref } from "react";
 import { ToadBoss } from "./ToadBoss";
 import { ScaredSnail } from "./ScaredSnail";
 import { ThoughtBubble } from "./ThoughtBubble";
-import { PILLAR_CLIMB_MS } from "./pillarColors";
+import { BEAM_TRAVEL_MS, PILLAR_COLORS, REFLECT_TRAVEL_MS } from "./pillarColors";
 
-export type PillarStatus = "pending" | "targeted" | "saved" | "burned";
-export type PillarFightState = { status: PillarStatus; climbing: boolean };
+export type PillarStatus = "pending" | "targeted" | "burning" | "saved" | "burned";
+export type PillarFightState = { status: PillarStatus };
+export type BeamShot = { position: number; key: number };
 
 // A long regal hall: solid tan stone pillars flanking the throne (rendered
 // separately, in Throne.tsx). The pillars are plain upright 2D rectangles
@@ -41,6 +43,41 @@ const PILLAR_ROWS = [
 
 const HALL_WIDTH = "min(1500px, 240vw)";
 
+// A plain 5-point star — used for the pillar's target marker instead of a
+// circle, and for the smaller "saved" highlight nested inside it.
+const STAR_CLIP_PATH =
+  "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)";
+
+// The toad's mouth, in the same top/left-percentage terms the pillars
+// below use. Both the toad (rendered directly in this file's fixed
+// inset-0 root) and the pillar row below (top:0/bottom:0, so also full
+// height) span the exact same box vertically, so a percentage derived
+// from ToadBoss's own bottom:24%/height:9% mouth (nested inside its
+// bottom:70%/height:26vh wrapper — and 26vh === 26% of this same
+// viewport-height box) converts directly with no separate coordinate
+// space to reconcile: 70 + (24 + 9/2) * 0.26 ≈ 77.4% from the bottom.
+const TOAD_MOUTH_X_PCT = 50;
+const TOAD_MOUTH_Y_PCT = 100 - 77.4;
+
+// The snail's resting spot when he isn't off tending a pillar — dead
+// center of the open floor, in the same top/left-percentage terms as
+// pillarBaseXY below (see pillarBaseXY for why that frame is safe to
+// share with the pillar container despite the two elements having
+// different parents).
+const SNAIL_HOME = { x: 50, y: 96 };
+
+// Where a given pillar's base sits, in percentages relative to the pillar
+// row container (top:0/bottom:0, width: HALL_WIDTH, centered — see the
+// TOAD_MOUTH comment above for why top/bottom % is shared with the outer
+// root, and note x% here is relative to HALL_WIDTH specifically, which is
+// fine as long as everything reading it — the beams, the snail — is
+// rendered inside that same pillar container rather than the wider root).
+function pillarBaseXY(position: number): { x: number; y: number } {
+  const row = PILLAR_ROWS[Math.floor(position / 2)];
+  const side = position % 2 === 0 ? "left" : "right";
+  return { x: side === "left" ? row.xPct : 100 - row.xPct, y: row.heightPct };
+}
+
 const STAR_COUNT = 40;
 const STARS = Array.from({ length: STAR_COUNT }, (_, i) => {
   const r1 = pseudoRandom(i * 3.3 + 5);
@@ -55,54 +92,134 @@ const STARS = Array.from({ length: STAR_COUNT }, (_, i) => {
   };
 });
 
+// One planet per pillar color, left to right in the exact order the toad
+// attacks them (PILLAR_COLORS) — a subtle environmental hint at the burn
+// order, instead of spelling it out in a text guide. Each entry's mid
+// gradient stop is the real pillar color itself so it reads as a genuine
+// match, not just a similar hue. Positions are picked to fall between the
+// pillar columns (measured, not guessed) so none of the six get eclipsed
+// by one; the two middle ones (yellow, green) additionally sit right
+// where the toad's head rises to once he appears, so they're pulled up
+// close to the ceiling to stay clear of his face rather than behind it.
 const PLANETS = [
   {
-    left: "9%",
-    top: "10%",
-    size: 64,
-    background: "radial-gradient(circle at 35% 30%, #f0a868 0%, #b8622e 55%, #6b3512 100%)",
-    glow: "rgba(240,168,104,0.35)",
+    left: "4%",
+    top: "18%",
+    size: 36,
+    background: `radial-gradient(circle at 35% 30%, #f28ca0 0%, ${PILLAR_COLORS[0]} 55%, #7a1128 100%)`,
+    glow: "rgba(224,48,79,0.35)",
   },
   {
-    left: "89%",
-    top: "7%",
-    size: 42,
-    background: "radial-gradient(circle at 35% 30%, #8fc9e8 0%, #4a7fa8 55%, #1f3f5c 100%)",
-    glow: "rgba(143,201,232,0.3)",
+    left: "17%",
+    top: "8%",
+    size: 26,
+    background: `radial-gradient(circle at 35% 30%, #f5b878 0%, ${PILLAR_COLORS[1]} 55%, #7a3a08 100%)`,
+    glow: "rgba(232,121,31,0.35)",
   },
   {
-    left: "80%",
-    top: "28%",
+    left: "40%",
+    top: "2%",
+    size: 20,
+    background: `radial-gradient(circle at 35% 30%, #fce9a8 0%, ${PILLAR_COLORS[2]} 55%, #8a6a12 100%)`,
+    glow: "rgba(246,201,76,0.35)",
+  },
+  {
+    left: "60%",
+    top: "3%",
     size: 24,
-    background: "radial-gradient(circle at 35% 30%, #d8b8e8 0%, #8a5ca8 55%, #4a2c5c 100%)",
-    glow: "rgba(216,184,232,0.3)",
+    background: `radial-gradient(circle at 35% 30%, #8fd89a 0%, ${PILLAR_COLORS[3]} 55%, #1a5620 100%)`,
+    glow: "rgba(63,174,74,0.35)",
+  },
+  {
+    left: "74%",
+    top: "10%",
+    size: 44,
+    background: `radial-gradient(circle at 35% 30%, #8fb8ec 0%, ${PILLAR_COLORS[4]} 55%, #16346b 100%)`,
+    glow: "rgba(47,111,209,0.35)",
+  },
+  {
+    left: "83%",
+    top: "16%",
+    size: 28,
+    background: `radial-gradient(circle at 35% 30%, #c299f0 0%, ${PILLAR_COLORS[5]} 55%, #45186b 100%)`,
+    glow: "rgba(138,63,224,0.35)",
   },
 ];
 
 export function ThroneHallBackground({
   showToadBoss = false,
-  toadFireBreathing = false,
+  toadHit = false,
+  toadDead = false,
+  toadMouthRef,
   pillarColors,
+  pillarColorsChanged = false,
   pillarStates,
+  slimeActive,
   onPillarClick,
-  snailHome = false,
+  snailRevealed = false,
   snailBubble = false,
+  snailPos = null,
+  snailRef,
+  snailTravelMs,
+  beamShot,
+  reflectShot,
 }: {
   showToadBoss?: boolean;
-  toadFireBreathing?: boolean;
+  // Briefly true right as a reflected shot lands back on the toad, so he
+  // can flash/react to it.
+  toadHit?: boolean;
+  // True once he's been defeated — see ToadBoss's own "dead" prop.
+  toadDead?: boolean;
+  // Forwarded to the toad's mouth so its real screen position can be
+  // measured (used to aim the thrown molotov).
+  toadMouthRef?: Ref<HTMLDivElement>;
   // Indexed 0-5: [row0-left, row0-right, row1-left, row1-right,
   // row2-left, row2-right]. Present once the knight's defeated.
   pillarColors?: string[];
+  // Briefly true right after pillarColors has been reshuffled (a retreat
+  // or a burned pillar both advance the rotation) — tells every star to
+  // pop at once so the player notices their colors moved, rather than
+  // silently walking back into a fight expecting the old layout.
+  pillarColorsChanged?: boolean;
   pillarStates?: PillarFightState[];
-  onPillarClick?: (position: number) => void;
-  // The ally snail's resting spot — visible whenever he isn't off
-  // climbing a specific pillar (see PillarFightState.climbing), so he
-  // never fully disappears during the encounter.
-  snailHome?: boolean;
+  // Whether each pillar currently has an active slime puddle at its base
+  // (same indexing as pillarStates).
+  slimeActive?: boolean[];
+  // Passes along the clicked pillar's real on-screen base position (its
+  // own container's getBoundingClientRect, bottom-center) so the caller
+  // can measure how far the snail actually has to crawl.
+  onPillarClick?: (position: number, basePoint: { x: number; y: number }) => void;
+  // The ally snail's entrance — once true he's a permanent fixture of the
+  // scene (never vanishes), just relocated by snailPos.
+  snailRevealed?: boolean;
   snailBubble?: boolean;
+  // Which pillar the snail is currently at/heading to; null means home,
+  // dead-center of the floor.
+  snailPos?: number | null;
+  // Exposes the snail's real DOM position so ThroneRoomScene can measure
+  // the distance to a clicked pillar (see onPillarClick above).
+  snailRef?: Ref<HTMLDivElement>;
+  // How long the current crawl should take — measured by ThroneRoomScene
+  // from real on-screen distance, so this drives both the CSS transition
+  // here and the timer that decides when he's "arrived" there.
+  snailTravelMs?: number;
+  // A one-shot burst of fire from the toad's mouth to a pillar's base —
+  // present only for the brief window it takes to travel there.
+  beamShot?: BeamShot | null;
+  // The mirror image: a one-shot burst of reflected fire from a slimed
+  // pillar's base back to the toad's mouth.
+  reflectShot?: BeamShot | null;
 }) {
   return (
-    <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+    // No z-index here (deliberately not -z-10): a negative z-index paints
+    // this whole layer behind *any* plain in-flow box, including <main>'s
+    // own (invisible, but still hit-testable) content box — which then
+    // wins every click before it can ever reach the pillar buttons inside
+    // here, no matter what pointer-events says on the button itself.
+    // Leaving z-index at its default (auto) still keeps this behind its
+    // one JSX sibling (the Throne/Molotov wrapper below), since that's
+    // later in DOM order — it just stops sinking behind <main> too.
+    <div className="pointer-events-none fixed inset-0 overflow-hidden">
       {/* night sky base */}
       <div
         className="absolute inset-0"
@@ -151,7 +268,7 @@ export function ThroneHallBackground({
           and side walls (painted after it) occlude its lower body, as if
           it's arising from behind the whole platform rather than in front
           of it */}
-      {showToadBoss && <ToadBoss fireBreathing={toadFireBreathing} />}
+      {showToadBoss && <ToadBoss hit={toadHit} dead={toadDead} mouthRef={toadMouthRef} />}
 
       {/* high side walls, receding with the hall */}
       <div
@@ -201,7 +318,9 @@ export function ThroneHallBackground({
               side="left"
               position={i * 2}
               color={pillarColors?.[i * 2]}
+              colorsChanged={pillarColorsChanged}
               fightState={pillarStates?.[i * 2]}
+              slimed={!!slimeActive?.[i * 2]}
               onClick={onPillarClick}
             />
             <Pillar
@@ -209,26 +328,28 @@ export function ThroneHallBackground({
               side="right"
               position={i * 2 + 1}
               color={pillarColors?.[i * 2 + 1]}
+              colorsChanged={pillarColorsChanged}
               fightState={pillarStates?.[i * 2 + 1]}
+              slimed={!!slimeActive?.[i * 2 + 1]}
               onClick={onPillarClick}
             />
           </div>
         ))}
-      </div>
 
-      {/* the ally snail's home spot, off to the side of the floor —
-          visible throughout the encounter except while he's off climbing
-          a pillar (see the Pillar component's own climbing indicator) */}
-      {snailHome && (
-        <div className="absolute bottom-[4%] left-[10%]">
-          {snailBubble && (
-            <ThoughtBubble className="absolute bottom-full left-1/2 mb-2 w-36 -translate-x-1/2">
-              <p className="font-bold">Let&apos;s get him.</p>
-            </ThoughtBubble>
-          )}
-          <ScaredSnail fear={0} />
-        </div>
-      )}
+        {/* the snail — lives here (rather than at the fixed root) so his
+            home spot and pillar destinations share one coordinate frame */}
+        {snailRevealed && (
+          <SnailAgent pos={snailPos} bubble={snailBubble} snailRef={snailRef} travelMs={snailTravelMs} />
+        )}
+
+        {/* the toad's fire, shooting from his mouth to whichever pillar
+            he's currently torching — a brief one-shot burst, not a
+            continuous stream, so it reads as a single strike */}
+        <ToadFireBeam shot={beamShot ?? null} />
+        {/* and its mirror: reflected fire bouncing off a slimed pillar
+            back at him */}
+        <ToadReflectBeam shot={reflectShot ?? null} />
+      </div>
 
       {/* vaulted ceiling shadow at the very top */}
       <div
@@ -244,25 +365,33 @@ function Pillar({
   side,
   position,
   color,
+  colorsChanged,
   fightState,
+  slimed,
   onClick,
 }: {
   row: { heightPct: number; xPct: number; width: number; opacity: number };
   side: "left" | "right";
   position: number;
   color?: string;
+  colorsChanged?: boolean;
   fightState?: PillarFightState;
-  onClick?: (position: number) => void;
+  slimed?: boolean;
+  onClick?: (position: number, basePoint: { x: number; y: number }) => void;
 }) {
   const sideStyle = side === "left" ? { left: `${row.xPct}%` } : { right: `${row.xPct}%` };
   const status = fightState?.status ?? "pending";
   const burned = status === "burned";
   const saved = status === "saved";
-  const targeted = status === "targeted";
-  // Only the pillar currently under fire is actually interactive — pending
-  // ones haven't been targeted yet, so clicking them ahead of order
-  // shouldn't look like it does anything.
-  const clickable = !!color && !!onClick && status === "targeted";
+  // Still under threat (aimed at, or already alight) — the circle keeps
+  // pulsing through both phases; only "burning" gets the actual flame
+  // graphic at the base.
+  const inDanger = status === "targeted" || status === "burning";
+  const onFire = status === "burning";
+  // Any pillar that hasn't already resolved can be sent the snail —
+  // including ones the toad hasn't targeted yet, so a pillar can be
+  // pre-slimed in anticipation.
+  const clickable = !!color && !!onClick && !burned && !saved;
 
   return (
     <div
@@ -303,9 +432,25 @@ function Pillar({
         }}
       />
 
-      {/* fire licking up the base — marks which pillar the toad is
-          currently attacking */}
-      {targeted && (
+      {/* slime puddle, laid by the snail — sits under/behind the flame so
+          an already-burning base that gets slimed reactively still shows
+          both until the next check resolves it */}
+      {slimed && (
+        <div
+          className="absolute bottom-0 left-1/2 -translate-x-1/2 animate-[slime-pulse_1.4s_ease-in-out_infinite]"
+          style={{
+            width: row.width * 1.7,
+            height: row.width * 0.5,
+            clipPath: "ellipse(50% 50% at 50% 100%)",
+            background: "radial-gradient(ellipse at 50% 30%, #baf27a 0%, #6fae3a 55%, #3c6b1e 100%)",
+            boxShadow: "0 0 10px rgba(140,230,80,0.7)",
+          }}
+        />
+      )}
+
+      {/* fire licking up the base — only once the toad's beam has actually
+          landed with nothing there to stop it */}
+      {onFire && (
         <div
           className="absolute left-1/2 -translate-x-1/2"
           style={{ bottom: 0, width: row.width * 1.6, height: row.width * 1.1 }}
@@ -350,66 +495,256 @@ function Pillar({
         </div>
       )}
 
-      {/* the colored circle assigned once the knight's defeated — the
-          fight's save-or-burn target */}
+      {/* the colored circle assigned once the knight's defeated — click
+          it to send the snail over to slime this pillar's base */}
       {color && (
         <button
-          onClick={clickable ? () => onClick!(position) : undefined}
+          onClick={
+            clickable
+              ? (e) => {
+                  // The button's own parent is this pillar's root box,
+                  // spanning ceiling to floor at this row's depth — its
+                  // bottom-center is exactly where the snail actually
+                  // needs to crawl to, not the (much higher) circle being
+                  // clicked here.
+                  const pillarBox = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect();
+                  onClick!(position, { x: pillarBox.left + pillarBox.width / 2, y: pillarBox.bottom });
+                }
+              : undefined
+          }
           disabled={!clickable}
-          aria-label="Climb this pillar"
+          aria-label="Send the snail to slime this pillar"
           className={`absolute left-1/2 -translate-x-1/2 outline-none ${
-            clickable ? "touch-manipulation cursor-pointer" : "pointer-events-none"
+            // The root background layer this button lives inside is
+            // pointer-events-none (so it never blocks clicks on foreground
+            // UI elsewhere on the page) — has to be explicitly opted back
+            // in here, or a real pointer click can never reach the button
+            // at all, only find nothing underneath it.
+            clickable ? "pointer-events-auto touch-manipulation cursor-pointer" : "pointer-events-none"
           }`}
           style={{ top: "13%", width: row.width * 0.55, height: row.width * 0.55 }}
         >
-          <div
-            className="absolute inset-0 transition-[background,box-shadow] duration-300"
-            style={{
-              clipPath: "circle(50% at 50% 50%)",
-              background: burned ? "#241a14" : color,
-              opacity: burned ? 0.6 : 1,
-              boxShadow: targeted
-                ? `0 0 10px ${color}, 0 0 22px #ff6a12`
-                : burned
-                  ? "none"
-                  : `0 0 8px ${color}`,
-              animation: targeted ? "pillar-fire-warn 0.7s ease-in-out infinite" : undefined,
-            }}
-          />
-          {saved && (
-            <div
-              className="absolute"
-              style={{
-                inset: "24%",
-                clipPath: "circle(50% at 50% 50%)",
-                background: "#dff5c0",
-                boxShadow: "0 0 6px #dff5c0",
-              }}
-            />
-          )}
-        </button>
-      )}
-
-      {/* the snail, climbing toward the circle */}
-      {fightState?.climbing && (
-        <div
-          className="absolute left-1/2 -translate-x-1/2"
-          style={{
-            width: row.width * 0.4,
-            height: row.width * 0.4,
-            animation: `pillar-climb ${PILLAR_CLIMB_MS}ms ease-out forwards`,
-          }}
-        >
+          {/* a plain (non-clip-path'd) wrapper carrying the white outline
+              and the reshuffle pop — clip-path on the star div below would
+              otherwise clip off any filter (drop-shadow) applied on that
+              same element, silently hiding it, which is why this lives one
+              level up instead */}
           <div
             className="absolute inset-0"
             style={{
-              clipPath: "circle(50% at 50% 50%)",
-              background: "linear-gradient(180deg, #cdeaa0 0%, #7aa84e 100%)",
-              boxShadow: "0 0 6px rgba(180,230,120,0.7)",
+              // Same white outline Molotov uses to flag itself as "the
+              // thing to click" — on for as long as this star can actually
+              // be clicked, on top of (not instead of) its own color glow
+              // below.
+              filter: clickable
+                ? "drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 4px rgba(255,255,255,0.85))"
+                : "none",
+              animation: colorsChanged ? "pillar-color-pop 900ms ease-out" : undefined,
             }}
-          />
-        </div>
+          >
+            <div
+              className="absolute inset-0 transition-[background,box-shadow] duration-300"
+              style={{
+                clipPath: STAR_CLIP_PATH,
+                background: burned ? "#241a14" : color,
+                opacity: burned ? 0.6 : 1,
+                boxShadow: inDanger
+                  ? `0 0 10px ${color}, 0 0 22px #ff6a12`
+                  : burned
+                    ? "none"
+                    : `0 0 8px ${color}`,
+                animation: inDanger ? "pillar-fire-warn 0.7s ease-in-out infinite" : undefined,
+              }}
+            />
+            {saved && (
+              <div
+                className="absolute"
+                style={{
+                  inset: "24%",
+                  clipPath: STAR_CLIP_PATH,
+                  background: "#dff5c0",
+                  boxShadow: "0 0 6px #dff5c0",
+                }}
+              />
+            )}
+          </div>
+        </button>
       )}
     </div>
+  );
+}
+
+// The ally snail — a single roaming agent rather than a per-pillar sprite,
+// since he can only be in one place at a time. Positioned in the same
+// top/left-percentage frame pillarBaseXY uses (see its comment), with a
+// plain CSS transition standing in for the crawl — its duration is
+// whatever ThroneRoomScene measured the real distance to be (travelMs),
+// so the visual motion always matches the timer deciding when he's
+// "arrived" and the slime actually gets laid.
+function SnailAgent({
+  pos,
+  bubble,
+  snailRef,
+  travelMs,
+}: {
+  pos: number | null;
+  bubble: boolean;
+  snailRef?: Ref<HTMLDivElement>;
+  travelMs?: number;
+}) {
+  const { x, y } = pos === null ? SNAIL_HOME : pillarBaseXY(pos);
+  // Nudged a little off-center from the pillar's base so he sits beside
+  // the slime puddle/flame rather than directly under them.
+  const nudge = pos === null ? 0 : x < 50 ? -4 : 4;
+  const facingLeft = x + nudge < 50;
+
+  return (
+    <div
+      ref={snailRef}
+      className="absolute -translate-x-1/2 -translate-y-full transition-[left,top] ease-in-out"
+      style={{ left: `${x + nudge}%`, top: `${y}%`, transitionDuration: `${travelMs ?? 900}ms` }}
+    >
+      {/* the bubble stays upright regardless of which way he's facing —
+          only the snail sprite itself mirrors, so the text never reads
+          backwards */}
+      {bubble && (
+        <ThoughtBubble className="absolute bottom-full left-1/2 mb-2 w-36 -translate-x-1/2">
+          <p className="font-bold">Let&apos;s get him.</p>
+        </ThoughtBubble>
+      )}
+      <div style={{ transform: `scaleX(${facingLeft ? -1 : 1})` }}>
+        <ScaredSnail fear={0} />
+      </div>
+    </div>
+  );
+}
+
+// The toad's fire, drawn as an SVG line rather than a rotated div: the
+// mouth sits dead-center (x: 50%) while the pillar doesn't, and this
+// container's width/height scale differently (a narrow capped-width hall
+// vs. the full viewport height), so a single rotate() transform would come
+// out at the wrong angle. preserveAspectRatio="none" lets the browser
+// stretch the line to the correct angle for us, and
+// vector-effect="non-scaling-stroke" keeps its thickness from being
+// distorted by that same non-uniform stretch. Three stacked strokes (soft
+// glow / body / bright core) read as a single detailed beam; pathLength +
+// stroke-dashoffset draws it traveling from mouth to target over
+// BEAM_TRAVEL_MS instead of just appearing, and it's gone again shortly
+// after — a strike, not a stream.
+function ToadFireBeam({ shot }: { shot: BeamShot | null }) {
+  if (!shot) return null;
+  const { x, y } = pillarBaseXY(shot.position);
+  const holdMs = 160;
+  const fadeMs = 260;
+  const anim = `beam-grow ${BEAM_TRAVEL_MS}ms ease-out forwards, beam-fade-out ${fadeMs}ms ease-in ${BEAM_TRAVEL_MS + holdMs}ms forwards`;
+
+  return (
+    <svg
+      key={shot.key}
+      className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+      preserveAspectRatio="none"
+      viewBox="0 0 100 100"
+    >
+      <line
+        x1={TOAD_MOUTH_X_PCT}
+        y1={TOAD_MOUTH_Y_PCT}
+        x2={x}
+        y2={y}
+        pathLength={100}
+        strokeDasharray={100}
+        stroke="rgba(255,120,20,0.5)"
+        strokeWidth={16}
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+        style={{ animation: anim, filter: "blur(2.5px)" }}
+      />
+      <line
+        x1={TOAD_MOUTH_X_PCT}
+        y1={TOAD_MOUTH_Y_PCT}
+        x2={x}
+        y2={y}
+        pathLength={100}
+        strokeDasharray={100}
+        stroke="#ff9a2e"
+        strokeWidth={7}
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+        style={{ animation: anim }}
+      />
+      <line
+        x1={TOAD_MOUTH_X_PCT}
+        y1={TOAD_MOUTH_Y_PCT}
+        x2={x}
+        y2={y}
+        pathLength={100}
+        strokeDasharray={100}
+        stroke="#fff3c4"
+        strokeWidth={3}
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+        style={{ animation: anim }}
+      />
+      {/* impact flash, timed to pop right as the beam's leading edge
+          arrives */}
+      <foreignObject x={x - 4} y={y - 4} width={8} height={8} style={{ overflow: "visible" }}>
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            clipPath: "circle(50% at 50% 50%)",
+            background:
+              "radial-gradient(circle, rgba(255,230,160,0.95) 0%, rgba(255,120,20,0.65) 45%, transparent 75%)",
+            animation: `beam-impact-flash 380ms ease-out ${BEAM_TRAVEL_MS}ms both`,
+          }}
+        />
+      </foreignObject>
+    </svg>
+  );
+}
+
+// The mirror image of ToadFireBeam: fire bouncing off a slimed base back
+// at the toad, on a shorter/snappier trip since it's already lit rather
+// than starting cold. Tinted green at the edges to read as "reflected off
+// the slime" rather than a second identical attack.
+function ToadReflectBeam({ shot }: { shot: BeamShot | null }) {
+  if (!shot) return null;
+  const { x, y } = pillarBaseXY(shot.position);
+  const fadeMs = 220;
+  const anim = `beam-grow ${REFLECT_TRAVEL_MS}ms ease-in forwards, beam-fade-out ${fadeMs}ms ease-in ${REFLECT_TRAVEL_MS + 100}ms forwards`;
+
+  return (
+    <svg
+      key={shot.key}
+      className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+      preserveAspectRatio="none"
+      viewBox="0 0 100 100"
+    >
+      <line
+        x1={x}
+        y1={y}
+        x2={TOAD_MOUTH_X_PCT}
+        y2={TOAD_MOUTH_Y_PCT}
+        pathLength={100}
+        strokeDasharray={100}
+        stroke="rgba(150,255,120,0.55)"
+        strokeWidth={14}
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+        style={{ animation: anim, filter: "blur(2px)" }}
+      />
+      <line
+        x1={x}
+        y1={y}
+        x2={TOAD_MOUTH_X_PCT}
+        y2={TOAD_MOUTH_Y_PCT}
+        pathLength={100}
+        strokeDasharray={100}
+        stroke="#eafccb"
+        strokeWidth={5}
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+        style={{ animation: anim }}
+      />
+    </svg>
   );
 }

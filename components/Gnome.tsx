@@ -1,10 +1,33 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { GNOME_MAX_ORBS, GNOME_STORAGE_KEY, readGnomeOrbs } from "./gnomeProgress";
+import {
+  GNOME_MAX_ORBS,
+  GNOME_ORBS_CHANGED_EVENT,
+  GNOME_STORAGE_KEY,
+  ORB_IDS,
+  collectOrb,
+  completeOrbMission,
+  readGnomeOrbs,
+  readOrbMissionCompleted,
+  readOrbsCollectedCount,
+  startOrbMission,
+} from "./gnomeProgress";
 import { CatOnBox } from "./CatOnBox";
+import { BossFightStartMenu } from "./BossFightStartMenu";
+import { VictoryScreen } from "./VictoryScreen";
 
-type Stage = "idle" | "menu" | "asking" | "yes" | "no" | "full" | "mission";
+type Stage =
+  | "idle"
+  | "menu"
+  | "asking"
+  | "yes"
+  | "no"
+  | "full"
+  | "mission"
+  | "collectOrbs"
+  | "orbThanks"
+  | "orbVictory";
 type Variant = "default" | "female";
 
 const RESPONSE_DISPLAY_MS = 2200;
@@ -28,11 +51,28 @@ export function Gnome() {
   const [orbAnimKey, setOrbAnimKey] = useState(0);
   const [variant, setVariant] = useState<Variant>("default");
   const [customizeOpen, setCustomizeOpen] = useState(false);
+  const [collectedOrbCount, setCollectedOrbCount] = useState(0);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from localStorage, an external store the server can't see; see comment above.
     setOrbs(readGnomeOrbs());
     setVariant(readVariant());
+    setCollectedOrbCount(readOrbsCollectedCount());
+  }, []);
+
+  // A CollectibleOrb elsewhere on this same page (e.g. the one tucked
+  // behind the mushroom cap on the fairyland page) writes straight to
+  // localStorage when collected — that alone doesn't re-render this
+  // already-mounted gnome, so the tube would otherwise only catch up on
+  // the next full page load. Listens for the event collectOrb() fires
+  // instead of polling.
+  useEffect(() => {
+    function handleOrbsChanged() {
+      setOrbs(readGnomeOrbs());
+      setCollectedOrbCount(readOrbsCollectedCount());
+    }
+    window.addEventListener(GNOME_ORBS_CHANGED_EVENT, handleOrbsChanged);
+    return () => window.removeEventListener(GNOME_ORBS_CHANGED_EVENT, handleOrbsChanged);
   }, []);
 
   function chooseVariant(next: Variant) {
@@ -44,6 +84,19 @@ export function Gnome() {
   function handleGnomeClick() {
     if (stage !== "idle") return;
     setStage("menu");
+  }
+
+  // Finding all the orbs isn't the finish line by itself — the bounty
+  // only actually completes once you bring the find back to him in
+  // person, which this is: the "Collect Orbs" menu option itself, once
+  // there's nothing left to find, becomes that hand-in instead of the
+  // normal briefing.
+  function handleOpenCollectOrbs() {
+    if (collectedOrbCount >= GNOME_MAX_ORBS && !readOrbMissionCompleted()) {
+      setStage("orbThanks");
+      return;
+    }
+    setStage("collectOrbs");
   }
 
   function handleYes() {
@@ -65,9 +118,17 @@ export function Gnome() {
     setTimeout(() => setStage("idle"), RESPONSE_DISPLAY_MS);
   }
 
-  function handleTestFill() {
-    setOrbs(GNOME_MAX_ORBS);
-    window.localStorage.setItem(GNOME_STORAGE_KEY, String(GNOME_MAX_ORBS));
+  // The "Collect Orbs" mission's insta-complete — the same fill-to-max
+  // shortcut that used to sit directly in this menu as "Test Fill".
+  // Actually collects every hidden orb (not just fills the tube) — a plain
+  // tube-fill would leave readOrbsCollectedCount() at 0, so returning to
+  // the gnome afterward would never reach the "Thank you" hand-in (see
+  // handleOpenCollectOrbs above), since that specifically checks each
+  // orb's own collected flag, not the shared tube total.
+  function handleInstaCollectOrbs() {
+    for (const id of ORB_IDS) collectOrb(id);
+    setOrbs(readGnomeOrbs());
+    setCollectedOrbCount(readOrbsCollectedCount());
     setStage("idle");
   }
 
@@ -143,10 +204,24 @@ export function Gnome() {
                   Check In
                 </button>
                 <button
-                  onClick={handleTestFill}
-                  className="touch-manipulation uppercase tracking-[0.2em] text-neon-dim transition-colors hover:text-neon"
+                  onClick={handleOpenCollectOrbs}
+                  className="touch-manipulation uppercase tracking-[0.2em] text-neon transition-colors hover:text-white"
                 >
-                  Test Fill
+                  Collect Orbs ({collectedOrbCount}/{GNOME_MAX_ORBS})
+                </button>
+              </div>
+            )}
+            {stage === "orbThanks" && (
+              <div className="flex flex-col gap-3">
+                <p>&quot;Thank you, good luck in the throne.&quot;</p>
+                <button
+                  onClick={() => {
+                    completeOrbMission();
+                    setStage("orbVictory");
+                  }}
+                  className="touch-manipulation uppercase tracking-[0.2em] text-neon transition-colors hover:text-white"
+                >
+                  Continue
                 </button>
               </div>
             )}
@@ -191,6 +266,47 @@ export function Gnome() {
             {stage === "no" && <p>Return to me when you have progressed.</p>}
             {stage === "full" && <p>Look how far you&apos;ve come.</p>}
           </div>
+        )}
+
+        {stage === "collectOrbs" && (
+          <BossFightStartMenu
+            title="Collect Orbs"
+            concept="medium"
+            gameplay="easy"
+            rewardRarity="uncommon"
+            beginLabel="Got It"
+            description={
+              <div className="flex flex-col items-center gap-3">
+                <div
+                  className="h-10 w-10 animate-[fire-glow-pulse_2.6s_ease-in-out_infinite]"
+                  style={{
+                    clipPath: "circle(50% at 50% 50%)",
+                    background: "linear-gradient(180deg, #7dd3fc 0%, #0ea5e9 100%)",
+                    boxShadow: "0 0 10px rgba(56,189,248,0.8), 0 0 20px rgba(56,189,248,0.5)",
+                  }}
+                />
+                <p>&quot;Find me these and I will grant you opportunity.&quot;</p>
+              </div>
+            }
+            // Unlike the others, backing out doesn't undo anything — the
+            // orbs, once the mission's begun, stay in the world across
+            // visits regardless of how this particular briefing is closed.
+            // Reloads (same as ResetButton) rather than just closing the
+            // menu — any CollectibleOrb already mounted on this same page
+            // (like this scene's own orb) only checks localStorage once,
+            // on mount, so it needs a fresh mount to notice the mission
+            // just started.
+            onBegin={() => {
+              startOrbMission();
+              window.location.reload();
+            }}
+            onBack={() => setStage("idle")}
+            onInstaComplete={handleInstaCollectOrbs}
+          />
+        )}
+
+        {stage === "orbVictory" && (
+          <VictoryScreen title="Orbs Collected" rewardRarity="uncommon" onClose={() => setStage("idle")} />
         )}
 
         {/* ambient presence glow */}

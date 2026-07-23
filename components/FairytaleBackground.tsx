@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { CollectibleOrb } from "./CollectibleOrb";
 
 // Deterministic pseudo-random in [0, 1) so the layout is stable across
 // server/static renders instead of relying on Math.random().
@@ -132,41 +133,6 @@ export function FairytaleBackground() {
           }}
         />
       ))}
-
-      {/* fairytale cottage — a round door and window in a mushroom-capped
-          little house, tucked into the treeline at the horizon. Kept over
-          on the left so its mushroom cap doesn't overlap the centered
-          title/paragraph text. */}
-      <div
-        className="absolute left-[2%] h-24 w-20 sm:left-[8%] sm:h-28 sm:w-24"
-        style={{ bottom: `${GROUND_HEIGHT_PCT}%` }}
-      >
-        <div
-          className="absolute bottom-0 h-16 w-full sm:h-20"
-          style={{ background: "linear-gradient(180deg, #6b4a30 0%, #4a3220 100%)" }}
-        />
-        <div
-          className="absolute left-1/2 bottom-0 h-8 w-8 -translate-x-1/2"
-          style={{ clipPath: "circle(50% at 50% 0%)", background: "#2a1a10" }}
-        />
-        <div
-          className="absolute left-2 top-2 h-4 w-4"
-          style={{ clipPath: "circle(50% at 50% 50%)", background: "#ffd98a", boxShadow: "0 0 10px #ffd98a" }}
-        />
-        {/* mushroom-cap roof */}
-        <div
-          className="absolute -top-6 left-1/2 h-10 w-28 -translate-x-1/2 sm:h-12 sm:w-32"
-          style={{
-            clipPath: "circle(50% at 50% 100%)",
-            background:
-              "radial-gradient(circle at 50% 20%, #e0546a 0%, #b8324a 55%, #7a1c2e 100%)",
-          }}
-        >
-          <div className="absolute left-[20%] top-[30%] h-2 w-2" style={{ clipPath: "circle(50% at 50% 50%)", background: "rgba(255,255,255,0.65)" }} />
-          <div className="absolute left-[55%] top-[45%] h-3 w-3" style={{ clipPath: "circle(50% at 50% 50%)", background: "rgba(255,255,255,0.6)" }} />
-          <div className="absolute left-[75%] top-[25%] h-2 w-2" style={{ clipPath: "circle(50% at 50% 50%)", background: "rgba(255,255,255,0.6)" }} />
-        </div>
-      </div>
 
       {/* silhouette treeline, right at the horizon */}
       {TREES.map((tree, i) => (
@@ -333,6 +299,56 @@ export function FairytaleBackground() {
           }
         />
       ))}
+    </div>
+  );
+}
+
+// The fairytale cottage — a round door and window in a mushroom-capped
+// little house, tucked into the treeline at the horizon. Kept over on the
+// left so its mushroom cap doesn't overlap the centered title/paragraph
+// text. Rendered as its own sibling (not nested inside FairytaleBackground
+// above) rather than folded into that decorative layer's -z-10 stacking —
+// anything painted at a negative z-index sits *behind* this page's own
+// normal-flow content for hit-testing purposes regardless of local
+// pointer-events, so the orb tucked into the cap below would otherwise be
+// permanently unclickable.
+export function MushroomCottage() {
+  return (
+    <div className="pointer-events-none fixed inset-0">
+      <div
+        className="absolute left-[2%] h-24 w-20 sm:left-[8%] sm:h-28 sm:w-24"
+        style={{ bottom: `${GROUND_HEIGHT_PCT}%` }}
+      >
+        <div
+          className="absolute bottom-0 h-16 w-full sm:h-20"
+          style={{ background: "linear-gradient(180deg, #6b4a30 0%, #4a3220 100%)" }}
+        />
+        <div
+          className="absolute left-1/2 bottom-0 h-8 w-8 -translate-x-1/2"
+          style={{ clipPath: "circle(50% at 50% 0%)", background: "#2a1a10" }}
+        />
+        <div
+          className="absolute left-2 top-2 h-4 w-4"
+          style={{ clipPath: "circle(50% at 50% 50%)", background: "#ffd98a", boxShadow: "0 0 10px #ffd98a" }}
+        />
+        {/* one of the gnome's hidden orbs (see gnomeProgress.ts), tucked
+            behind the mushroom cap's curved right edge — no separate prop
+            of its own, just DOM order stacking it behind the cap below */}
+        <CollectibleOrb id="fairyland" style={{ left: 88, top: -6 }} />
+        {/* mushroom-cap roof */}
+        <div
+          className="absolute -top-6 left-1/2 h-10 w-28 -translate-x-1/2 sm:h-12 sm:w-32"
+          style={{
+            clipPath: "circle(50% at 50% 100%)",
+            background:
+              "radial-gradient(circle at 50% 20%, #e0546a 0%, #b8324a 55%, #7a1c2e 100%)",
+          }}
+        >
+          <div className="absolute left-[20%] top-[30%] h-2 w-2" style={{ clipPath: "circle(50% at 50% 50%)", background: "rgba(255,255,255,0.65)" }} />
+          <div className="absolute left-[55%] top-[45%] h-3 w-3" style={{ clipPath: "circle(50% at 50% 50%)", background: "rgba(255,255,255,0.6)" }} />
+          <div className="absolute left-[75%] top-[25%] h-2 w-2" style={{ clipPath: "circle(50% at 50% 50%)", background: "rgba(255,255,255,0.6)" }} />
+        </div>
+      </div>
     </div>
   );
 }

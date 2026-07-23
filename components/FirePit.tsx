@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { CollectibleOrb } from "./CollectibleOrb";
 
 const FLAME_VARIANTS = [
   "polygon(50% 0%, 75% 28%, 60% 24%, 85% 52%, 64% 48%, 90% 78%, 52% 100%, 16% 86%, 30% 56%, 8% 46%, 36% 30%, 18% 14%)",
@@ -202,6 +203,30 @@ export function FirePit() {
           }
         />
       ))}
+    </div>
+  );
+}
+
+// A stand-in for one small stretch of the charred ground above, holding
+// one of the gnome's hidden orbs (see gnomeProgress.ts) tucked behind its
+// rise — rendered as its own sibling (not nested inside FirePit) rather
+// than folded into that decorative layer's -z-10 stacking, since anything
+// painted at a negative z-index sits *behind* this page's own normal-flow
+// content for hit-testing purposes regardless of local pointer-events,
+// which would leave the orb permanently unclickable. Same clip-path and
+// gradient as the real ground so it reads as exactly the same rock, not a
+// separate prop.
+export function FirePitOrbGround() {
+  return (
+    <div className="pointer-events-none fixed inset-0">
+      <CollectibleOrb id="pit" style={{ left: "40%", bottom: 51 }} />
+      <div
+        className="absolute inset-x-0 bottom-0 h-28 sm:h-32"
+        style={{
+          clipPath: GROUND_CLIP_PATH,
+          background: "linear-gradient(180deg, #2a1006 0%, #0d0402 100%)",
+        }}
+      />
     </div>
   );
 }

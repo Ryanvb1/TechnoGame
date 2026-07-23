@@ -1,3 +1,5 @@
+import { PILLAR_COLORS } from "./pillarColors";
+
 const MOUND_CLIP_PATH =
   "polygon(50% 0%, 78% 8%, 94% 28%, 100% 55%, 92% 80%, 70% 100%, 30% 100%, 8% 80%, 0% 55%, 6% 28%, 22% 8%)";
 
@@ -18,14 +20,18 @@ const CARPET_CLIP_PATH = "polygon(38% 0%, 62% 0%, 84% 100%, 16% 100%)";
 // Sizes below are the full desktop scale (50% larger than the original
 // design); the `--tscale` custom property (set responsively below) scales
 // everything back down together for mobile so nothing overflows there.
+//
+// Left to right, in the exact order the toad attacks the pillars
+// (PILLAR_COLORS) — same convention as the pillar stars themselves and the
+// night sky's planets, so all three read as the same sequence rather than
+// three unrelated decorations.
 const GEMS = [
-  { left: "8%", bottom: "6%", size: 18, z: 18, color: "#e0304f" },
-  { left: "88%", bottom: "10%", size: 21, z: 11, color: "#2f6fd1" },
-  { left: "24%", bottom: "2%", size: 17, z: 29, color: "#2fae5c" },
-  { left: "72%", bottom: "3%", size: 15, z: 26, color: "#9a4fe0" },
-  { left: "46%", bottom: "0%", size: 15, z: 36, color: "#e0304f" },
-  { left: "58%", bottom: "12%", size: 14, z: 15, color: "#f6c94c" },
-  { left: "14%", bottom: "16%", size: 14, z: 21, color: "#2f6fd1" },
+  { left: "8%", bottom: "6%", size: 18, z: 18, color: PILLAR_COLORS[0] },
+  { left: "24%", bottom: "16%", size: 14, z: 21, color: PILLAR_COLORS[1] },
+  { left: "40%", bottom: "2%", size: 17, z: 29, color: PILLAR_COLORS[2] },
+  { left: "58%", bottom: "12%", size: 14, z: 15, color: PILLAR_COLORS[3] },
+  { left: "72%", bottom: "3%", size: 15, z: 26, color: PILLAR_COLORS[4] },
+  { left: "88%", bottom: "10%", size: 21, z: 11, color: PILLAR_COLORS[5] },
 ];
 
 function s(px: number) {

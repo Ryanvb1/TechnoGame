@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { GNOME_MAX_ORBS, readGnomeOrbs } from "./gnomeProgress";
-import { readSnailGreeted, markSnailGreeted } from "./snailState";
+import { readSnailGreeted, markSnailGreeted, readSnailRescued } from "./snailState";
 import { ScaredSnail } from "./ScaredSnail";
 import { ThoughtBubble } from "./ThoughtBubble";
+import { readEquippedItem } from "./inventory";
 
 const GREETING_DISPLAY_MS = 4200;
 
@@ -16,11 +16,13 @@ export function HomeSnail() {
   // is what actually repaints the DOM to match.
   const [rescued, setRescued] = useState(false);
   const [showGreeting, setShowGreeting] = useState(false);
+  const [rainbowShell, setRainbowShell] = useState(false);
 
   useEffect(() => {
-    const saved = readGnomeOrbs() >= GNOME_MAX_ORBS;
+    const saved = readSnailRescued();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from localStorage, an external store the server can't see; see comment above.
     setRescued(saved);
+    setRainbowShell(readEquippedItem() === "rainbow-shell");
     if (saved && !readSnailGreeted()) {
       setShowGreeting(true);
       markSnailGreeted();
@@ -37,7 +39,7 @@ export function HomeSnail() {
           <p>Traveler, you saved my life.</p>
         </ThoughtBubble>
       )}
-      <ScaredSnail fear={0} />
+      <ScaredSnail fear={0} rainbowShell={rainbowShell} />
     </div>
   );
 }

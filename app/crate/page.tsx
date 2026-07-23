@@ -1,6 +1,7 @@
 import { SectionShell } from "@/components/SectionShell";
 import { CrateOpener } from "@/components/CrateOpener";
 import { VendingMachine } from "@/components/VendingMachine";
+import { Locker } from "@/components/Locker";
 import { LockedChest } from "@/components/LockedChest";
 
 export default function CratePage() {
@@ -18,6 +19,7 @@ export default function CratePage() {
           </div>
           <VendingMachine />
         </div>
+        <Locker />
       </div>
       <LockedChest />
     </SectionShell>

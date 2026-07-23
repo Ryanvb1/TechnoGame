@@ -1,7 +1,30 @@
+// rest: hanging at his side, exactly where the art was originally drawn.
+// raised: wound up overhead — the fight screen's whole tell for the charge
+// attack (see FightScene.tsx), replacing what used to be a separate red
+// warning glow. slamming: swung down into the strike itself.
+export type SwordPhase = "rest" | "raised" | "slamming";
+
+const SWORD_ROTATION_DEG: Record<SwordPhase, number> = {
+  rest: 0,
+  raised: -125,
+  slamming: 35,
+};
+
+// How long the sword takes to reach each phase's pose — raised deliberately
+// matches FightScene's own CHARGE_APPROACH_MS so the blade finishes rising
+// right as he arrives, not before or after; slamming is a fast chop; rest
+// covers both the calm walk-back after a landed hit and the stagger after
+// being punched away, so it splits the difference.
+const SWORD_TRANSITION_MS: Record<SwordPhase, number> = {
+  rest: 400,
+  raised: 1400,
+  slamming: 180,
+};
+
 // The knight's armor/sword artwork, split out from Knight.tsx so the fight
 // screen can render the same figure without the throne-room click/dialogue
 // behavior wrapped around it.
-export function KnightFigure() {
+export function KnightFigure({ swordPhase = "rest" }: { swordPhase?: SwordPhase }) {
   return (
     <div className="relative flex flex-col items-center">
       {/* cape — sized to end right at the torso's own bottom edge (it
@@ -75,16 +98,32 @@ export function KnightFigure() {
         <div className="absolute -right-[10px] top-[6px] h-[72px] w-[29px] bg-gradient-to-b from-[#a3acb6] to-[#4b525a]" />
 
         {/* sword, gripped just past the right hand — tapered to a point
-            for a sharper blade edge, sized and positioned to sit right
-            beside the repositioned arm instead of floating far out */}
+            for a sharper blade edge. The blade and guard are drawn at the
+            same coordinates they always were (relative to this wrapper,
+            not the torso directly), so `rest` looks pixel-identical to the
+            old static art; only rotating the wrapper around the grip lets
+            `raised`/`slamming` swing the whole sword as one rigid piece. */}
         <div
-          className="absolute -right-[30px] top-[40px] h-[150px] w-[13px]"
+          className="absolute transition-transform ease-in-out"
           style={{
-            clipPath: "polygon(50% 0%, 100% 9%, 100% 100%, 0% 100%, 0% 9%)",
-            background: "linear-gradient(90deg, #8b9299 0%, #e4e9ee 45%, #ffffff 55%, #8b9299 100%)",
+            right: "-37px",
+            top: "32px",
+            width: "27px",
+            height: "158px",
+            transformOrigin: "100% 8px",
+            transform: `rotate(${SWORD_ROTATION_DEG[swordPhase]}deg)`,
+            transitionDuration: `${SWORD_TRANSITION_MS[swordPhase]}ms`,
           }}
-        />
-        <div className="absolute -right-[37px] top-[32px] h-[11px] w-[27px] bg-[#caa243]" />
+        >
+          <div
+            className="absolute right-0 top-[8px] h-[150px] w-[13px]"
+            style={{
+              clipPath: "polygon(50% 0%, 100% 9%, 100% 100%, 0% 100%, 0% 9%)",
+              background: "linear-gradient(90deg, #8b9299 0%, #e4e9ee 45%, #ffffff 55%, #8b9299 100%)",
+            }}
+          />
+          <div className="absolute right-0 top-0 h-[11px] w-[27px] bg-[#caa243]" />
+        </div>
       </div>
 
       {/* legs */}

@@ -1,11 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import { CollectibleOrb } from "./CollectibleOrb";
 
 const LOCK_MESSAGE_MS = 2200;
 
 // A small, moss-green chest tangled in vines, tucked in the corner —
 // locked for now. No unlock mechanic yet, it just tells you it's locked.
+// One of the gnome's hidden orbs (see gnomeProgress.ts) sits half-sunken
+// into the lid — no separate prop of its own, just DOM order stacking it
+// behind the lid (see CollectibleOrb's own comment).
 export function LockedChest() {
   const [showMessage, setShowMessage] = useState(false);
 
@@ -28,6 +32,7 @@ export function LockedChest() {
         style={{ minWidth: 76, height: 56 }}
       >
         <div className="relative h-[48px] w-[64px]">
+          <CollectibleOrb id="kiosk" style={{ left: 40, top: -11 }} />
           {/* body */}
           <div
             className="absolute bottom-0 h-[30px] w-full"

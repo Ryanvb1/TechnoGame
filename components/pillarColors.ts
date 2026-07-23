@@ -1,10 +1,23 @@
 export const PILLAR_ROTATION_KEY = "techno-pillar-rotation";
 
-// Shared with the "pillar-climb" CSS animation in globals.css and the
-// snail-climb div's inline duration in ThroneHallBackground.tsx, so the
-// fight logic marks a pillar "saved" exactly when the climb animation
-// visually finishes.
-export const PILLAR_CLIMB_MS = 900;
+// Shared timing for the snail/slime/fire-beam choreography — used by both
+// ThroneRoomScene (which drives the actual state machine on these delays)
+// and ThroneHallBackground (whose CSS transitions/animations need to run
+// for the exact same durations so the visuals stay in sync with the logic).
+//
+// The snail's own crawl time isn't a fixed duration — ThroneRoomScene
+// measures the real on-screen distance from wherever he currently is to
+// the clicked pillar's base (getBoundingClientRect on both ends, since
+// they live in unrelated layout containers with no shared percentage
+// space) and divides by this speed, clamped to the bounds below so a
+// neighboring pillar doesn't feel instant and a far corner doesn't feel
+// like a wait.
+export const SNAIL_SPEED_PX_PER_MS = 0.35; // ~350px/s, a deliberate crawl
+export const SNAIL_MIN_TRAVEL_MS = 450;
+export const SNAIL_MAX_TRAVEL_MS = 2600;
+export const SLIME_DURATION_MS = 5000; // how long a laid puddle stays reflective
+export const BEAM_TRAVEL_MS = 1100; // the toad's fire, mouth -> pillar base
+export const REFLECT_TRAVEL_MS = 520; // reflected fire, pillar base -> mouth (snappier, it's already lit)
 
 // Fixed semantic order — this is also the order the toad burns pillars in
 // during the fight, so "index into this array" IS "burn order".

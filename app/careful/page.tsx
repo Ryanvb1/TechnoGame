@@ -1,17 +1,14 @@
 import { SectionShell } from "@/components/SectionShell";
-import { FirePit } from "@/components/FirePit";
+import { FirePit, FirePitOrbGround } from "@/components/FirePit";
+import { PitGate } from "@/components/PitGate";
 
 export default function CarefulPage() {
   return (
-    <SectionShell
-      title="The Pit"
-      centered
-      backDirection="up"
-      backVisual="rope"
-      hideTitle
-      hideBackLabel
-    >
-      <FirePit />
+    <SectionShell title="The Pit" centered backDirection="up" hideTitle>
+      <PitGate>
+        <FirePit />
+      </PitGate>
+      <FirePitOrbGround />
     </SectionShell>
   );
 }
