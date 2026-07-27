@@ -43,14 +43,15 @@ export function PitGate({ children }: { children: React.ReactNode }) {
           gameplay="easy"
           rewardRarity="uncommon"
           onBegin={() => setStarted(true)}
-          // Same "up" direction the Pit's own back arrow already leaves by
-          // (see backDirection="up" on its SectionShell).
-          onBack={() => travel("up", "/")}
-          // Marks him rescued outright and leaves — nothing left on this
-          // page needs playing once he's already safe.
+          onBack={() => travel("/")}
+          // Marks him rescued outright — stays on the page (rather than
+          // leaving for "/" immediately) so the same victory chest a real
+          // rescue gets still shows and can actually be opened.
           onInstaComplete={() => {
             markSnailRescued();
-            travel("up", "/");
+            setStarted(true);
+            setRescued(true);
+            setShowVictory(true);
           }}
         />
       )}
@@ -90,7 +91,12 @@ export function PitGate({ children }: { children: React.ReactNode }) {
             setReplaying(true);
           }}
           onBack={() => setReplayBriefing(false)}
-          onInstaComplete={() => setReplayBriefing(false)}
+          // Same as the first-time shortcut above — still shows the chest
+          // rather than just closing the briefing with nothing granted.
+          onInstaComplete={() => {
+            setReplayBriefing(false);
+            setShowVictory(true);
+          }}
         />
       )}
       {replaying && (

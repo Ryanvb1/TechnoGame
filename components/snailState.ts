@@ -46,3 +46,18 @@ export function readSnailPullProgress(): number {
 export function writeSnailPullProgress(value: number) {
   window.localStorage.setItem(SNAIL_PULL_PROGRESS_KEY, String(value));
 }
+
+const SNAIL_LOCATION_COMMENT_PREFIX = "techno-snail-location-";
+
+// Whether the companion snail (see LocationSnail) has already made his
+// one-off remark about a given location — keyed per-pathname so each
+// place only gets commented on once, same idea as SNAIL_GREETED_KEY but
+// per-location instead of a single global flag.
+export function readSnailLocationCommented(locationId: string): boolean {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(SNAIL_LOCATION_COMMENT_PREFIX + locationId) === "true";
+}
+
+export function markSnailLocationCommented(locationId: string) {
+  window.localStorage.setItem(SNAIL_LOCATION_COMMENT_PREFIX + locationId, "true");
+}

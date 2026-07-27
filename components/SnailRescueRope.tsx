@@ -438,15 +438,18 @@ function Geyser({ xPct, phase }: { xPct: number; phase: GeyserPhase }) {
   const telegraphing = phase === "telegraph";
   const height = erupting ? "100vh" : telegraphing ? "70px" : "34px";
   const width = erupting ? 90 : 46;
+  // The rise into "erupt" has to actually finish well within
+  // GEYSER_ERUPT_MS (600ms) or the eruption is already back over before the
+  // CSS transition ever reaches full height — it used to share one flat
+  // 3000ms duration with every other height change, so it never visibly
+  // got there during a live eruption, only during the frozen defeat screen
+  // (nothing left to interrupt an in-flight transition). The recede back
+  // down to idle can stay leisurely since nothing's timed against it.
+  const durationMs = erupting ? 150 : telegraphing ? 300 : 900;
   return (
     <div
-      // Shoots up at 40% of its original speed (150ms -> 375ms), then
-      // reduced another 100% on top of that (375ms -> 750ms), then
-      // reduced another 100% (750ms -> 1500ms), then reduced another
-      // 100% once more — half again as fast, so double the duration once
-      // more (1500ms -> 3000ms).
-      className="pointer-events-none fixed bottom-0 z-20 -translate-x-1/2 transition-[height,width] duration-[3000ms] ease-out"
-      style={{ left: `${xPct}%`, width, height }}
+      className="pointer-events-none fixed bottom-0 z-20 -translate-x-1/2 transition-[height,width] ease-out"
+      style={{ left: `${xPct}%`, width, height, transitionDuration: `${durationMs}ms` }}
     >
       <div
         className={telegraphing ? "h-full w-full animate-[fire-flicker_0.15s_ease-in-out_infinite]" : "h-full w-full"}

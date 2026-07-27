@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { readSnailGreeted, markSnailGreeted, readSnailRescued } from "./snailState";
 import { ScaredSnail } from "./ScaredSnail";
 import { ThoughtBubble } from "./ThoughtBubble";
-import { readEquippedItem } from "./inventory";
+import { EQUIPPED_ITEM_CHANGED_EVENT, readEquippedItem } from "./inventory";
 
 const GREETING_DISPLAY_MS = 4200;
 
@@ -28,6 +28,16 @@ export function HomeSnail() {
       markSnailGreeted();
       window.setTimeout(() => setShowGreeting(false), GREETING_DISPLAY_MS);
     }
+  }, []);
+
+  // Same reasoning as LocationSnail's own listener — picks up an equip
+  // change made elsewhere without waiting for a fresh mount.
+  useEffect(() => {
+    function syncShell() {
+      setRainbowShell(readEquippedItem() === "rainbow-shell");
+    }
+    window.addEventListener(EQUIPPED_ITEM_CHANGED_EVENT, syncShell);
+    return () => window.removeEventListener(EQUIPPED_ITEM_CHANGED_EVENT, syncShell);
   }, []);
 
   if (!rescued) return null;

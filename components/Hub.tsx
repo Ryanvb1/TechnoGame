@@ -7,6 +7,7 @@ import { ResetButton } from "@/components/ResetButton";
 import { RainbowBallCounter } from "./RainbowBallCounter";
 import { Cave } from "./Cave";
 import { Airport } from "./Airport";
+import { WaterPortal } from "./WaterPortal";
 import { markTacticViewed, readTacticViewed } from "./tacticState";
 import { readSnailRescued } from "./snailState";
 import { readOrbMissionCompleted } from "./gnomeProgress";
@@ -54,6 +55,7 @@ export function Hub() {
       <RainbowBallCounter />
       <Cave />
       <Airport />
+      <WaterPortal />
       {showSettings && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 px-6 backdrop-blur-sm"

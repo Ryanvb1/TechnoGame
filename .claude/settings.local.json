@@ -39,7 +39,27 @@
       "Bash(curl -s http://localhost:3000/throne-room/fight -o /dev/null -w \"%{http_code}\\\\n\")",
       "Bash(curl -s http://localhost:3000/throne-room/fight)",
       "Bash(npx eslint *)",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(lsof -i :3000 -sTCP:LISTEN)",
+      "Bash(git status *)",
+      "Bash(git stash *)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(xargs -I{} sh -c 'echo \"== {} ==\"; cat {}')",
+      "Bash(kill 82736)",
+      "Bash(echo \"grep exit: $?\")",
+      "Bash(grep -v \"^--$\")",
+      "Bash(kill 16490)",
+      "Bash(curl -s http://localhost:3000/throne-room/fight > /tmp/fight_page.html *)",
+      "Bash(curl -s \"http://localhost:3000/_next/static/chunks/components_1_49qfy._.js\" -o /tmp/chunk.js)",
+      "Bash(xargs -I{} sh -c 'echo \"-- {} --\"; cat {}')",
+      "Bash(kill 97570 97571)",
+      "Bash(cp components/FightScene.tsx /tmp/FightScene.tsx.bak)",
+      "Bash(sed -i '' -e 's/const CHARGE_COOLDOWN_MIN_MS = 7000;/const CHARGE_COOLDOWN_MIN_MS = 500;/' -e 's/const CHARGE_COOLDOWN_MAX_MS = 14000;/const CHARGE_COOLDOWN_MAX_MS = 1000;/' -e 's/const CHARGE_SPRINT_MS = 500;/const CHARGE_SPRINT_MS = 6000;/' components/FightScene.tsx)",
+      "Bash(cp /tmp/FightScene.tsx.bak /tmp/FightScene.tsx.bak2 2>/dev/null; diff /tmp/FightScene.tsx.bak components/FightScene.tsx | head -5; echo \"---\"; grep -n \"onPlateRef\\\\|const justPressed\\\\|The pressure-plate interrupt\" components/FightScene.tsx)",
+      "Bash(curl -sI http://localhost:3000)",
+      "Bash(node -e ' *)",
+      "Bash(git diff *)",
+      "Read(//tmp/**)"
     ]
   }
 }

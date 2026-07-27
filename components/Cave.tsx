@@ -4,20 +4,23 @@ import { useEffect, useState } from "react";
 import { CollectibleOrb } from "./CollectibleOrb";
 import { readCaveUnlocked } from "./siteAccess";
 import { LockOutline } from "./LockOutline";
+import { useSceneTravel } from "./PageTransition";
 
 const MESSAGE_MS = 2200;
 
 // A rocky outcrop with a dark arched mouth, tucked in the bottom-left
 // corner of the hub. Locked by default; purchasable in the kiosk's vending
-// machine (see VendingMachine.tsx) — buying it doesn't unlock a
-// destination yet (nothing's built behind it), just changes what clicking
-// it tells you. One of the gnome's hidden orbs (see gnomeProgress.ts) sits
-// tucked into the mound's own shoulder, on the right — no separate prop
-// of its own, just DOM order stacking it behind that part of the rock
-// (see CollectibleOrb's own comment).
+// machine (see VendingMachine.tsx). Once unlocked it's a real destination
+// (see app/cave/page.tsx) — "down" as in descending into it, mirrored by
+// that page's own backDirection="up" to climb back out. One of the
+// gnome's hidden orbs (see gnomeProgress.ts) sits tucked into the mound's
+// own shoulder, on the right — no separate prop of its own, just DOM
+// order stacking it behind that part of the rock (see CollectibleOrb's
+// own comment).
 export function Cave() {
   const [unlocked, setUnlocked] = useState(false);
   const [showMessage, setShowMessage] = useState(false);
+  const travel = useSceneTravel();
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from localStorage, an external store the server can't see; see comment above.
@@ -25,6 +28,10 @@ export function Cave() {
   }, []);
 
   function handleClick() {
+    if (unlocked) {
+      travel("/cave");
+      return;
+    }
     setShowMessage(true);
     window.setTimeout(() => setShowMessage(false), MESSAGE_MS);
   }
@@ -33,14 +40,20 @@ export function Cave() {
     <div className="fixed bottom-6 left-6 z-20 sm:bottom-10 sm:left-10">
       {showMessage && (
         <div className="pointer-events-none absolute bottom-full left-0 mb-3 w-36 border border-neon-dim bg-background/95 px-3 py-2 text-center text-[0.6rem] uppercase tracking-[0.2em] text-foreground shadow-[0_0_15px_var(--neon-dim)]">
-          {unlocked ? "Coming Soon" : "Locked"}
+          Locked
         </div>
       )}
       <button
         onClick={handleClick}
-        aria-label={unlocked ? "The cave entrance, access purchased" : "A locked cave entrance"}
+        aria-label={unlocked ? "Enter the cave" : "A locked cave entrance"}
         className="group relative flex touch-manipulation flex-col items-center justify-end outline-none"
       >
+        {/* Grows upward from this box's own fixed bottom edge, same as the
+            "Locked" tooltip above, so it stays on screen instead of the
+            cave being just an unlabeled image. */}
+        <span className="mb-1 text-[0.55rem] uppercase tracking-[0.3em] text-neon-dim transition-colors group-hover:text-neon">
+          Cave
+        </span>
         <LockOutline unlocked={unlocked} className={`p-2 ${unlocked ? "" : "opacity-50"}`}>
         <div
           className="relative h-[108px] w-[152px]"

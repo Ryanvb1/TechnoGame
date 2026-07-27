@@ -4,7 +4,7 @@ import { PitGate } from "@/components/PitGate";
 
 export default function CarefulPage() {
   return (
-    <SectionShell title="The Pit" centered backDirection="up" hideTitle>
+    <SectionShell title="The Pit" centered backDirection="up" hideTitle hideCompanionSnail>
       <PitGate>
         <FirePit />
       </PitGate>

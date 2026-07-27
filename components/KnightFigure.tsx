@@ -11,13 +11,14 @@ const SWORD_ROTATION_DEG: Record<SwordPhase, number> = {
 };
 
 // How long the sword takes to reach each phase's pose — raised deliberately
-// matches FightScene's own CHARGE_APPROACH_MS so the blade finishes rising
-// right as he arrives, not before or after; slamming is a fast chop; rest
-// covers both the calm walk-back after a landed hit and the stagger after
-// being punched away, so it splits the difference.
+// matches FightScene's own CHARGE_WINDUP_MS so the blade finishes rising
+// while he's still stationary, before the sprint for the heart ever
+// starts; slamming is a fast chop; rest covers both the calm walk-back
+// after a landed hit and the stagger after being punched away, so it
+// splits the difference.
 const SWORD_TRANSITION_MS: Record<SwordPhase, number> = {
   rest: 400,
-  raised: 1400,
+  raised: 900,
   slamming: 180,
 };
 

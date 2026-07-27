@@ -56,7 +56,7 @@ export function ArrowButton({
       return;
     }
     e.preventDefault();
-    travel(direction, href);
+    travel(href);
   }
 
   return (

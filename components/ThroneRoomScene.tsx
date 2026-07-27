@@ -12,7 +12,8 @@ import { ReplayMissionButton } from "./ReplayMissionButton";
 import { VictoryScreen } from "./VictoryScreen";
 import { RainbowShellIcon } from "./RainbowShellIcon";
 import { addToInventory } from "./inventory";
-import { readKnightDefeated } from "./throneState";
+import { readKnightDefeated, readToadDefeated, markToadDefeated } from "./throneState";
+import { useHideCompanionSnail } from "./companionSnail";
 import {
   BEAM_TRAVEL_MS,
   PILLAR_COLORS,
@@ -75,6 +76,10 @@ export function ThroneRoomScene() {
   // (no localStorage on the server); this effect syncs in the real value
   // right after mount, same pattern as the rest of the site's progress state.
   const [knightDefeated, setKnightDefeated] = useState(false);
+  // Same reasoning as knightDefeated above — persisted across visits so a
+  // Replay Toad trigger (see below) can show up without the player having
+  // to re-win within the same page session first.
+  const [toadDefeated, setToadDefeated] = useState(false);
   const [sequence, setSequence] = useState<Sequence>("idle");
   const [pillarRotation, setPillarRotation] = useState(0);
   const [pillarStatuses, setPillarStatuses] = useState<PillarFightState[]>(emptyPillarStatuses());
@@ -110,8 +115,15 @@ export function ThroneRoomScene() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from localStorage, an external store the server can't see; see comment above.
     setKnightDefeated(readKnightDefeated());
+    setToadDefeated(readToadDefeated());
     setPillarRotation(readPillarRotation());
   }, []);
+
+  // Borrows the player's own companion snail (see LocationSnail) for the
+  // fight's pillar-dousing ally rather than having two independent snails
+  // on screen at once — hidden for exactly as long as SnailAgent (rendered
+  // by ThroneHallBackground below) is revealed.
+  useHideCompanionSnail(snailRevealed);
 
   useEffect(() => {
     pillarRotationRef.current = pillarRotation;
@@ -124,6 +136,8 @@ export function ThroneRoomScene() {
     if (sequence !== "won") return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- re-arms the victory screen for this specific "won" transition (including replays, which route back through "briefing"/"fighting" first), not a one-time mount default.
     setShowVictory(true);
+    setToadDefeated(true);
+    markToadDefeated();
   }, [sequence]);
 
   // Every rotation after the first re-shuffles which star sits on which
@@ -284,6 +298,19 @@ export function ThroneRoomScene() {
     advancePillarRotation();
     setPillarRotation(readPillarRotation());
     resetEncounter();
+  }
+
+  // Straight back to the briefing, not straight back into the fight — same
+  // as every other mission's replay trigger. resetEncounter() clears the
+  // just-finished fight's state (toad health, pillar statuses, slime, ...);
+  // the setSequence right after overrides the "idle" it lands on, in the
+  // same batch, so this ends up at "briefing" with everything else already
+  // fresh. Shared by both the persisted top-of-screen trigger (shown on any
+  // later visit once the toad's already been beaten) and the one shown
+  // right after a fresh win.
+  function replayToad() {
+    resetEncounter();
+    setSequence("briefing");
   }
 
   // Owns the whole fight: targets colors in order, fires a beam at each
@@ -451,6 +478,15 @@ export function ThroneRoomScene() {
   return (
     <>
       <KnightReplayTrigger />
+      {/* Same idea as KnightReplayTrigger, but for the toad — persisted
+          across visits (see throneState.ts) rather than only appearing
+          right after a fresh win (see the "won" block below), and offset
+          to the right of the knight's own trigger since defeating the toad
+          always implies the knight's already down too, so both can be on
+          screen at once. */}
+      {toadDefeated && sequence === "idle" && (
+        <ReplayMissionButton label="Replay Toad" align="right" onClick={replayToad} />
+      )}
       <ThroneHallBackground
         showToadBoss={showToadBoss}
         toadHit={toadHit}
@@ -512,20 +548,27 @@ export function ThroneRoomScene() {
               aria-label="Approach the throne"
               className="group relative block touch-manipulation outline-none disabled:cursor-default"
             >
-              <Throne />
               {sequence === "idle" && (
-                <>
-                  <div
-                    className="pointer-events-none absolute inset-0 -z-10 animate-[fire-glow-pulse_2.4s_ease-in-out_infinite]"
-                    style={{
-                      background: "radial-gradient(closest-side, rgba(57,255,143,0.3), transparent 70%)",
-                    }}
-                  />
-                  <span className="absolute left-1/2 top-full mt-3 -translate-x-1/2 whitespace-nowrap text-[0.6rem] uppercase tracking-[0.3em] text-neon-dim transition-colors group-hover:text-neon">
-                    Approach
-                  </span>
-                </>
+                <div
+                  className="pointer-events-none absolute inset-0 -z-10 animate-[fire-glow-pulse_2.4s_ease-in-out_infinite]"
+                  style={{
+                    background: "radial-gradient(closest-side, rgba(57,255,143,0.3), transparent 70%)",
+                  }}
+                />
               )}
+              <div
+                style={{
+                  // Same white outline Molotov/the pillar stars use to flag
+                  // themselves as "the thing to click" — the chair itself
+                  // is the affordance now, no separate "Approach" label.
+                  filter:
+                    sequence === "idle"
+                      ? "drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 6px rgba(255,255,255,0.85))"
+                      : "none",
+                }}
+              >
+                <Throne />
+              </div>
             </button>
           ) : (
             <Throne />
@@ -601,29 +644,21 @@ export function ThroneRoomScene() {
             rewardRarity="epic"
             itemName="Rainbow Shell"
             itemIcon={<RainbowShellIcon size={56} />}
-            // The one real, named piece of loot on the site so far — see
-            // inventory.ts and Locker.tsx. Idempotent, so replaying this
-            // fight after already owning it is harmless.
-            onReveal={() => addToInventory("rainbow-shell")}
+            // The named Rainbow Shell is what the chest actually shows;
+            // the toad's own badge (see inventory.ts and Locker.tsx) rides
+            // along silently alongside it. Both idempotent, so replaying
+            // this fight after already owning them is harmless.
+            onReveal={() => {
+              addToInventory("rainbow-shell");
+              addToInventory("toad-badge");
+            }}
             onClose={() => setShowVictory(false)}
           />
         )}
 
         {sequence === "won" && (
           <>
-            {/* Straight back to the briefing, not straight back into the
-                fight — same as every other mission's replay trigger.
-                resetEncounter() clears the just-finished fight's state
-                (toad health, pillar statuses, slime, ...); the setSequence
-                right after overrides the "idle" it lands on, in the same
-                batch, so this ends up at "briefing" with everything else
-                already fresh. */}
-            <ReplayMissionButton
-              onClick={() => {
-                resetEncounter();
-                setSequence("briefing");
-              }}
-            />
+            <ReplayMissionButton label="Replay Toad" align="right" onClick={replayToad} />
             <div className="flex flex-col items-center gap-4">
               <p className="text-lg uppercase tracking-[0.3em] text-neon">The toad is beaten back.</p>
               <button

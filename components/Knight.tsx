@@ -5,10 +5,16 @@ import { useRouter } from "next/navigation";
 import { KnightFigure } from "./KnightFigure";
 import { BossFightStartMenu } from "./BossFightStartMenu";
 import { ReplayMissionButton } from "./ReplayMissionButton";
-import { markKnightDefeated, readKnightDefeated } from "./throneState";
+import { VictoryScreen } from "./VictoryScreen";
+import { BadgeIcon } from "./BadgeIcon";
+import { grantKnightVictoryLoot, markKnightDefeated, readKnightDefeated } from "./throneState";
 import { readSnailRescued } from "./snailState";
 
-type Stage = "idle" | "challenge";
+// "insta-won" is the dev/test shortcut's own path to the exact same
+// victory chest the real fight (FightScene) shows — without it, insta-
+// completing here skipped the chest, and the badge/rainbow-ball drop it
+// grants, entirely.
+type Stage = "idle" | "challenge" | "insta-won";
 
 export function Knight() {
   const [visible] = useState(() => readSnailRescued() && !readKnightDefeated());
@@ -32,13 +38,25 @@ export function Knight() {
           rewardRarity="rare"
           onBegin={() => router.push("/throne-room/fight")}
           onBack={() => setStage("idle")}
-          // Marks him defeated and reloads — the whole throne room's
-          // layout (the throne itself, pillars, molotov) all key off
-          // knightDefeated read once at mount, in multiple components
-          // that don't otherwise talk to each other, so a hard reload is
-          // the simplest way to get every one of them to agree on the new
-          // state rather than threading a callback through all of them.
-          onInstaComplete={() => {
+          onInstaComplete={() => setStage("insta-won")}
+        />
+      )}
+
+      {stage === "insta-won" && (
+        <VictoryScreen
+          title="The Knight Yields"
+          rewardRarity="rare"
+          itemName="Knight's Badge"
+          itemIcon={<BadgeIcon color="#9aa5ad" size={56} />}
+          onReveal={grantKnightVictoryLoot}
+          // Marks him defeated and reloads once the chest's been closed —
+          // the whole throne room's layout (the throne itself, pillars,
+          // molotov) all key off knightDefeated read once at mount, in
+          // multiple components that don't otherwise talk to each other,
+          // so a hard reload is the simplest way to get every one of them
+          // to agree on the new state rather than threading a callback
+          // through all of them.
+          onClose={() => {
             markKnightDefeated();
             window.location.reload();
           }}
@@ -81,7 +99,9 @@ export function KnightReplayTrigger() {
 
   return (
     <>
-      {stage === "idle" && <ReplayMissionButton onClick={() => setStage("challenge")} />}
+      {stage === "idle" && (
+        <ReplayMissionButton label="Replay Knight" align="left" onClick={() => setStage("challenge")} />
+      )}
       {stage === "challenge" && (
         <BossFightStartMenu
           title="The Knight"
@@ -90,7 +110,17 @@ export function KnightReplayTrigger() {
           rewardRarity="rare"
           onBegin={() => router.push("/throne-room/fight")}
           onBack={() => setStage("idle")}
-          onInstaComplete={() => setStage("idle")}
+          onInstaComplete={() => setStage("insta-won")}
+        />
+      )}
+      {stage === "insta-won" && (
+        <VictoryScreen
+          title="The Knight Yields"
+          rewardRarity="rare"
+          itemName="Knight's Badge"
+          itemIcon={<BadgeIcon color="#9aa5ad" size={56} />}
+          onReveal={grantKnightVictoryLoot}
+          onClose={() => setStage("idle")}
         />
       )}
     </>

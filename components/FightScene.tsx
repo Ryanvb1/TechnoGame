@@ -5,22 +5,33 @@ import type { KeyboardEvent, PointerEvent } from "react";
 import Link from "next/link";
 import { KnightFigure, type SwordPhase } from "./KnightFigure";
 import { FightBackground } from "./FightBackground";
-import { markKnightDefeated } from "./throneState";
+import { grantKnightVictoryLoot, markKnightDefeated } from "./throneState";
 import { DefeatProgressBar } from "./DefeatProgressBar";
 import { VictoryScreen } from "./VictoryScreen";
+import { BadgeIcon } from "./BadgeIcon";
 
 type Stage = "fighting" | "won" | "lost";
 type ShieldPhase = "idle" | "telegraph" | "active" | "lowering";
-// idle: normal shuffling. charging: sword rising overhead while he strides
-// for the heart — this stride+raise *is* the whole warning now, no separate
-// glow. The pressure plate can cut this short, but only while he's still on
-// his way in and actually within the glove's reach (see GLOVE_REACH_X) —
-// press it too early (out of reach) or too late and nothing happens.
-// striking: he's arrived and committed — the downswing lands regardless of
-// the plate now, dealing one big hit. recovering: walking back out after
-// landing that hit. punched: the glove caught him first — knocked back
-// before the swing ever comes down.
-type ChargePhase = "idle" | "charging" | "striking" | "recovering" | "punched";
+// idle: normal shuffling — the pressure plate can punch him out of this
+// too now, not just out of a charge, so long as the plate's off cooldown
+// (see PRESSURE_PLATE_COOLDOWN_MS). The plate itself always fires on a
+// press (cooldown included) regardless of where he's standing; whether
+// that press actually costs him anything comes down to the glove's own
+// short reach (see GLOVE_REACH_X, marked with a subtle line on the arena
+// floor) — within it, the punch lands for real; outside it, the glove still
+// throws (see gloveWhiff) but he's untouched. windup: sword rising
+// overhead while he holds his ground — a clean, stationary telegraph
+// before he commits to anything. charging: sword already up, now
+// sprinting straight for the heart — fast and committed, arriving and
+// slamming down the instant he gets there rather than pausing once more
+// first; this is also the phase that actually carries him into the
+// glove's reach, so it's the plate's most reliable window even though it
+// isn't the only one. striking: he's arrived and committed — the
+// downswing lands regardless of the plate now, dealing one big hit.
+// recovering: walking back out after landing that hit. punched: the
+// glove caught him for real — knocked back before the swing ever comes
+// down.
+type ChargePhase = "idle" | "windup" | "charging" | "striking" | "recovering" | "punched";
 
 const MAX_HEALTH = 450;
 
@@ -28,14 +39,27 @@ const MAX_HEALTH = 450;
 // beam/knight/shield/heart all agree on the same space regardless of
 // viewport size.
 const KNIGHT_START_X = 76;
-const KNIGHT_MIN_X = 58;
-const KNIGHT_MAX_X = 90;
+// KNIGHT_MIN_X/KNIGHT_MAX_X are declared further down (after HEART_X,
+// GLOVE_REACH_X, HIT_RADIUS, and PRESSURE_PLATE_X/PRESSURE_PLATE_HIT_RADIUS
+// all exist to derive them from) — see there for why.
 // 20% more erratic: he reshuffles position 20% more often (same min/max
 // spread, just compressed), rather than jumping further per move.
 const KNIGHT_MOVE_MIN_MS = 900 * 0.8;
 const KNIGHT_MOVE_MAX_MS = 2200 * 0.8;
-// How long it takes him to glide to a new spot. This drives a JS-side
-// tween of knightX itself (see animateKnightTo below), not a CSS
+// The pacing above no longer gets sampled as a flat uniform spread — see
+// erraticDuration — since that reads as smooth/predictable rather than
+// erratic. This is just the mean it now centers on, so the same overall
+// reshuffle rate survives, only distributed much less evenly: some
+// reshuffles come in quick succession, others sit for a while.
+const KNIGHT_MOVE_MEAN_MS = (KNIGHT_MOVE_MIN_MS + KNIGHT_MOVE_MAX_MS) / 2;
+// How far a single "small twitch" reshuffle can nudge him from wherever he
+// already is, as opposed to a full reposition across the whole shuffle
+// zone — see pickErraticKnightTarget.
+const KNIGHT_JITTER_X = 8;
+// How long it takes him to glide to a new spot — now the *mean* of a per-
+// move erratic duration (see erraticDuration) rather than a fixed value,
+// so some shuffles are quick darts and others slow drifts. This drives a
+// JS-side tween of knightX itself (see animateKnightTo below), not a CSS
 // transition — knightX is also what hit-detection and the shield's own
 // position read, so if it jumped to its target instantly (with only the
 // *visual* left position catching up over a CSS transition, as this used
@@ -64,7 +88,17 @@ const KNIGHT_TICK_DAMAGE = 4;
 const PLAYER_TICK_DAMAGE = 9 * 1.5; // reflected hits deal 50% more
 
 const TELEGRAPH_MS = 450;
-const SHIELD_ACTIVE_MS = 1000; // short, rapid bursts rather than one long block — untouched, only frequency changes below
+// How long each burst stays up. MIN/MAX only survive now as the source of
+// SHIELD_ACTIVE_MEAN_MS below — the actual per-burst duration comes from
+// erraticDuration, not a flat spread between them (see there for why: a
+// flat spread reads as smooth/predictable, not erratic). The mean still
+// lands on the same old 1000ms average, so the total time spent blocking
+// over a fight is unchanged — some bursts now snap down far faster, others
+// hang on far longer, instead of the narrower, more evenly-spread range
+// this used to sample from.
+const SHIELD_ACTIVE_MIN_MS = 500;
+const SHIELD_ACTIVE_MAX_MS = 1500;
+const SHIELD_ACTIVE_MEAN_MS = (SHIELD_ACTIVE_MIN_MS + SHIELD_ACTIVE_MAX_MS) / 2;
 const SHIELD_LOWER_MS = 500;
 // Shield frequency, thrice-buffed now: it already came up 70% more often
 // than its original cooldown range (the /1.7), then another 60% on top of
@@ -72,36 +106,117 @@ const SHIELD_LOWER_MS = 500;
 // 1/period, so a further 80% increase means dividing the already-
 // compressed period by another 1.8) — same min/max spread, just
 // compressed again, so bursts stay just as short/rapid, only closer
-// together.
+// together. As with SHIELD_ACTIVE above, MIN/MAX now only feed
+// SHIELD_COOLDOWN_MEAN_MS — erraticDuration samples the actual gap, so the
+// same average frequency survives while individual gaps swing much wider.
 const SHIELD_COOLDOWN_MIN_MS = 1000 / 1.7 / 1.6 / 1.8;
 const SHIELD_COOLDOWN_MAX_MS = 4800 / 1.7 / 1.6 / 1.8;
+const SHIELD_COOLDOWN_MEAN_MS = (SHIELD_COOLDOWN_MIN_MS + SHIELD_COOLDOWN_MAX_MS) / 2;
 
 // The charge attack — periodic, independent of the shield cycle. He winds
 // up (sword rising) and strides straight for the heart; unanswered, the
 // swing that follows lands one massive hit rather than a drawn-out tick.
 const CHARGE_COOLDOWN_MIN_MS = 7000;
 const CHARGE_COOLDOWN_MAX_MS = 14000;
-// The whole approach — sword rising and stride happening together, eased
-// out so he closes the final stretch slowly (see GLOVE_REACH_X) instead of
-// arriving at full speed, giving the plate a real, readable window rather
-// than a frame-perfect one.
-const CHARGE_APPROACH_MS = 1400;
+// The wind-up — sword rising while he holds his ground, stationary; the
+// telegraph itself, and the whole reason the plate has a readable window
+// at all before he ever starts moving.
+const CHARGE_WINDUP_MS = 900;
+// The sprint that follows, sword already overhead — eased IN (building
+// speed) rather than out, since the warning already happened during the
+// windup; this is just the fast, committed dash home, arriving right into
+// the slam rather than settling first.
+const CHARGE_SPRINT_MS = 500;
 // Stops just short of the heart itself rather than right on top of it, so
 // the heart (and the strike that eventually lands on it) stay visible.
 const CHARGE_TARGET_X = HEART_X + 10;
+// How much clear runway he needs — past the glove's own reach line
+// (KNIGHT_MIN_X), which his ordinary idle shuffling can now bring him
+// right up against — before a charge is allowed to begin. Starting a
+// charge from right against that line would carry him across it almost
+// immediately once the sprint starts, giving the plate no fair "he's just
+// now crossing" moment to react to. See the charge cooldown effect below
+// (attemptCharge) for how this gets used: simplest fix is just to wait
+// and not start the charge yet, not to re-position him or touch the
+// crossing logic itself.
+const CHARGE_START_MARGIN_X = 15;
+const CHARGE_START_RETRY_MS = 500;
 // How close (in the same knightX space as CHARGE_TARGET_X) he actually has
-// to be for the pressure plate to land the punch — the plate itself can be
-// stepped on at any time, but it only does anything once he's within the
-// glove's real reach, so pressing early or from a normal shuffle position
-// does nothing.
-const GLOVE_REACH_X = 16;
+// to be for the pressure plate's punch to land — fairly short and
+// centered on the heart. The plate itself always activates on a press
+// (see triggerPlatePunch), whether or not he's in this zone; standing
+// outside it just means the swing whiffs instead of costing him anything
+// (see the matching boundary line in the JSX below). 16 bumped up 15%,
+// then back down 15% from there.
+const GLOVE_REACH_X = 16 * 1.15 * 0.85;
 const STRIKE_MS = 260; // the downswing itself, start to floor
 const STRIKE_IMPACT_MS = 170; // how far into that swing the blade actually connects
 const SLAM_DAMAGE = 140;
 const RETREAT_MS = 700; // walking back out after landing the hit
 const PRESSURE_PLATE_X = 93;
 const PRESSURE_PLATE_HIT_RADIUS = 6;
+// How far left his ordinary shuffling/idle is now allowed to drift —
+// exactly to the glove's own reach boundary (the same line GloveRangeZone
+// draws, HEART_X + GLOVE_REACH_X), never past it. He used to shuffle no
+// closer than KNIGHT_START_X's old neighborhood (58), nowhere near that
+// line — letting him actually reach it means the plate can land outside
+// of a charge too, not just during one.
+const KNIGHT_MIN_X = Math.min(100, HEART_X + GLOVE_REACH_X);
+// How far right he's allowed to drift — pulled back from the pressure
+// plate's own hit zone (PRESSURE_PLATE_X ± PRESSURE_PLATE_HIT_RADIUS) by
+// the tick-damage beam's own HIT_RADIUS on top of that, so aiming to just
+// damage him near his rightmost position can never also land on the plate
+// as an accidental side effect of the same press.
+const KNIGHT_MAX_X = PRESSURE_PLATE_X - PRESSURE_PLATE_HIT_RADIUS - HIT_RADIUS;
 const PUNCH_MS = 550;
+// How long the plate is locked out after any activation, landed or
+// whiffed — otherwise the beam could just be pulled off the plate and
+// dropped back on the instant he steps into range.
+const PRESSURE_PLATE_COOLDOWN_MS = 2000;
+// How long a fresh activation stays "live" waiting for him to actually be
+// in reach before it gives up and resolves as a whiff. He's only ever
+// inside GLOVE_REACH_X for a sliver of the charge's sprint (eased IN, so
+// he's moving fastest right as he crosses into range) — without this
+// buffer that window is on the order of a couple of animation frames,
+// well under human reaction time, which is what made the plate feel like
+// it just didn't work. This widens the window a press can land in without
+// resurrecting the old exploit: it's still a small fraction of the
+// windup+sprint he takes to actually arrive (CHARGE_WINDUP_MS +
+// CHARGE_SPRINT_MS), so parking early and forgetting about it still times
+// out long before he ever gets close.
+const PLATE_ACTIVATION_BUFFER_MS = 250;
+
+// A duration that reads as erratic rather than a smooth random spread,
+// while its long-run average still lands on meanMs — so callers can swap
+// this in for a flat `MIN + Math.random() * (MAX - MIN)` draw without
+// shifting the total time whatever it's timing ends up adding up to over
+// a full fight. Splits 50/50 between a quick roll centered at
+// meanMs*(1-spread) and a long roll centered at meanMs*(1+spread) — each
+// still jittered within its own regime, not just two fixed numbers — so
+// half the time it's a fast flick and half the time a long stretch,
+// instead of everything clustering near the middle. The two centers
+// average back to exactly meanMs by construction (spread cancels out:
+// (1-spread + 1+spread) / 2 = 1).
+function erraticDuration(meanMs: number, spread = 0.7) {
+  const isQuick = Math.random() < 0.5;
+  const base = meanMs * (isQuick ? 1 - spread : 1 + spread);
+  const jitter = base * 0.3 * (Math.random() * 2 - 1);
+  return Math.max(30, base + jitter);
+}
+
+// Where he shuffles to next: half the time a full reposition anywhere in
+// his usual range (same as before), half the time just a small twitch off
+// wherever he already is (KNIGHT_JITTER_X) — so a "move" doesn't always
+// mean a full cross-arena walk, some read as barely settling before
+// fidgeting again.
+function pickErraticKnightTarget(currentX: number) {
+  const reposition = Math.random() < 0.5;
+  if (reposition) {
+    return KNIGHT_MIN_X + Math.random() * (KNIGHT_MAX_X - KNIGHT_MIN_X);
+  }
+  const jitter = (Math.random() * 2 - 1) * KNIGHT_JITTER_X;
+  return Math.min(KNIGHT_MAX_X, Math.max(KNIGHT_MIN_X, currentX + jitter));
+}
 
 export function FightScene() {
   const [playerHealth, setPlayerHealth] = useState(MAX_HEALTH);
@@ -112,6 +227,12 @@ export function FightScene() {
   const [knightX, setKnightX] = useState(KNIGHT_START_X);
   const [chargePhase, setChargePhase] = useState<ChargePhase>("idle");
   const [showVictory, setShowVictory] = useState(false);
+  // Drives the glove's punch animation on a press that's out of
+  // GLOVE_REACH_X — a real swing that just doesn't connect, as opposed to
+  // chargePhase "punched" (a swing that did). Separate from chargePhase
+  // since a whiff has to animate the glove without touching the knight at
+  // all.
+  const [gloveWhiff, setGloveWhiff] = useState(false);
 
   const arenaRef = useRef<HTMLDivElement>(null);
   const beamXRef = useRef(beamX);
@@ -120,6 +241,27 @@ export function FightScene() {
   const shieldedRef = useRef(false);
   const stageRef = useRef<Stage>(stage);
   const chargePhaseRef = useRef<ChargePhase>(chargePhase);
+  // Gates the pressure plate's own cooldown — a plain ref rather than
+  // state since nothing needs to re-render off it, the detection effect
+  // below just reads it at trigger time.
+  const plateCooldownRef = useRef(false);
+  const plateCooldownTimerRef = useRef<number | null>(null);
+  // Holds the windup→sprint handoff timer so beginCharge's delayed half
+  // can be cancelled the same way a running tween already can be.
+  const windupTimerRef = useRef<number | null>(null);
+  const gloveWhiffTimerRef = useRef<number | null>(null);
+  // Tracks whether the beam was already resting on the plate as of the
+  // last check, so the detection effect below can fire on the *rising
+  // edge* only (the instant the beam arrives on the plate) rather than on
+  // every render it happens to still be parked there — see triggerPlatePunch
+  // for why that distinction matters.
+  const wasOnPlateRef = useRef(false);
+  // Drives the short grace window after an out-of-range activation — see
+  // armPendingPunch and PLATE_ACTIVATION_BUFFER_MS. A rAF loop rather than
+  // a single setTimeout so it can resolve the instant he steps into reach
+  // (or the instant the phase becomes ineligible / the beam leaves the
+  // plate) instead of only checking once the buffer fully elapses.
+  const pendingPunchRafRef = useRef<number | null>(null);
 
   useEffect(() => {
     beamXRef.current = beamX;
@@ -141,6 +283,27 @@ export function FightScene() {
   useEffect(() => {
     chargePhaseRef.current = chargePhase;
   }, [chargePhase]);
+
+  // Mount-only: clears the plate's cooldown timer, any pending
+  // windup→sprint handoff, any in-flight whiff animation, and any armed
+  // pending-punch poll if the component unmounts mid-timer, same as
+  // knightAnimRef gets cancelled elsewhere.
+  useEffect(() => {
+    return () => {
+      if (plateCooldownTimerRef.current !== null) {
+        window.clearTimeout(plateCooldownTimerRef.current);
+      }
+      if (windupTimerRef.current !== null) {
+        window.clearTimeout(windupTimerRef.current);
+      }
+      if (gloveWhiffTimerRef.current !== null) {
+        window.clearTimeout(gloveWhiffTimerRef.current);
+      }
+      if (pendingPunchRafRef.current !== null) {
+        cancelAnimationFrame(pendingPunchRafRef.current);
+      }
+    };
+  }, []);
 
   // Tweens knightX itself, frame by frame, from wherever he currently is to
   // a new target — see KNIGHT_MOVE_TRANSITION_MS above for why this has to
@@ -174,25 +337,29 @@ export function FightScene() {
   );
 
   const animateKnightTo = useCallback(
-    (target: number) => {
-      tweenKnightTo(target, KNIGHT_MOVE_TRANSITION_MS, (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2));
+    (target: number, durationMs: number = KNIGHT_MOVE_TRANSITION_MS) => {
+      tweenKnightTo(target, durationMs, (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2));
     },
     [tweenKnightTo]
   );
 
-  // Strides straight for the heart, sword rising the whole way, then flips
-  // into the strike itself once he arrives — see the CHARGE_* constants
-  // above. Eased out (slow finish) rather than in, so the final stretch —
-  // where the pressure plate can still catch him — takes a real, readable
-  // beat instead of closing in an instant.
+  // Winds the sword up first, stationary (see CHARGE_WINDUP_MS), then
+  // hands off into the sprint itself — straight for the heart, eased IN so
+  // he's arriving at full speed, flipping directly into the strike the
+  // instant he gets there rather than settling into place first.
   const beginCharge = useCallback(() => {
-    setChargePhase("charging");
+    setChargePhase("windup");
     // Puts the shield away cleanly rather than leaving it visually up
     // (or mid-raise) while he charges — the two attacks don't overlap.
     setShieldPhase("idle");
-    tweenKnightTo(CHARGE_TARGET_X, CHARGE_APPROACH_MS, (t) => 1 - Math.pow(1 - t, 3), () => {
-      setChargePhase("striking");
-    });
+    windupTimerRef.current = window.setTimeout(() => {
+      windupTimerRef.current = null;
+      if (stageRef.current !== "fighting") return;
+      setChargePhase("charging");
+      tweenKnightTo(CHARGE_TARGET_X, CHARGE_SPRINT_MS, (t) => t * t, () => {
+        setChargePhase("striking");
+      });
+    }, CHARGE_WINDUP_MS);
   }, [tweenKnightTo]);
 
   // The pressure-plate interrupt: launches him back out to his normal
@@ -203,6 +370,75 @@ export function FightScene() {
       setChargePhase("idle");
     });
   }, [tweenKnightTo]);
+
+  // The plate-side wrapper around triggerPunch. Only ever called on a
+  // fresh activation edge (the beam just arriving on the plate — see the
+  // detection effect below), so every call here starts the cooldown,
+  // landed or not: activating the plate is what costs you the 2s, not
+  // just landing the hit. That's what stops the beam being parked on the
+  // plate and camped through — an activation while he's out of range is a
+  // real whiff that burns the cooldown just the same, so the only way to
+  // land the punch is to actually bring the beam onto the plate at a
+  // moment he's already within GLOVE_REACH_X.
+  const triggerPlatePunch = useCallback(
+    (landed: boolean) => {
+      plateCooldownRef.current = true;
+      plateCooldownTimerRef.current = window.setTimeout(() => {
+        plateCooldownRef.current = false;
+        plateCooldownTimerRef.current = null;
+      }, PRESSURE_PLATE_COOLDOWN_MS);
+      if (landed) {
+        triggerPunch();
+      } else {
+        setGloveWhiff(true);
+        gloveWhiffTimerRef.current = window.setTimeout(() => {
+          setGloveWhiff(false);
+          gloveWhiffTimerRef.current = null;
+        }, PUNCH_MS);
+      }
+    },
+    [triggerPunch]
+  );
+
+  // Keeps a fresh, out-of-range activation "live" for PLATE_ACTIVATION_BUFFER_MS
+  // instead of resolving it as a whiff immediately — polled every frame via
+  // rAF (reading the same refs the tweens already keep current) rather than
+  // relying on beamX/knightX to keep re-triggering the detection effect,
+  // since knightX stops changing entirely between shuffles and would
+  // otherwise leave this stuck waiting forever. Resolves landed the instant
+  // he steps into GLOVE_REACH_X; resolves whiffed the instant the beam
+  // leaves the plate, the phase becomes uninterruptible (striking/
+  // recovering/punched), or the buffer simply runs out first.
+  const armPendingPunch = useCallback(() => {
+    const deadline = performance.now() + PLATE_ACTIVATION_BUFFER_MS;
+    function poll() {
+      if (stageRef.current !== "fighting") {
+        pendingPunchRafRef.current = null;
+        return;
+      }
+      const stillOnPlate = Math.abs(beamXRef.current - PRESSURE_PLATE_X) <= PRESSURE_PLATE_HIT_RADIUS;
+      const phase = chargePhaseRef.current;
+      const uninterruptible = phase === "striking" || phase === "recovering" || phase === "punched";
+      if (!stillOnPlate || uninterruptible) {
+        pendingPunchRafRef.current = null;
+        triggerPlatePunch(false);
+        return;
+      }
+      const inReach = Math.abs(knightXRef.current - HEART_X) <= GLOVE_REACH_X;
+      if (inReach) {
+        pendingPunchRafRef.current = null;
+        triggerPlatePunch(true);
+        return;
+      }
+      if (performance.now() >= deadline) {
+        pendingPunchRafRef.current = null;
+        triggerPlatePunch(false);
+        return;
+      }
+      pendingPunchRafRef.current = requestAnimationFrame(poll);
+    }
+    pendingPunchRafRef.current = requestAnimationFrame(poll);
+  }, [triggerPlatePunch]);
 
   // The calm walk back out after a swing actually lands — same destination
   // as the punch-launch, deliberately slower/gentler since nothing hit him.
@@ -237,7 +473,12 @@ export function FightScene() {
   }
 
   // The knight's shield cycle — a brief telegraph (rising, harmless) before
-  // it's actually up and able to deflect the beam.
+  // it's actually up and able to deflect the beam. Both the gap between
+  // raises and how long each one stays up now come from erraticDuration
+  // rather than a flat spread — see SHIELD_COOLDOWN_MEAN_MS/
+  // SHIELD_ACTIVE_MEAN_MS above for why the same long-run averages (same
+  // total time blocking over a fight) survive even though individual
+  // gaps/bursts now swing much wider.
   useEffect(() => {
     if (stage !== "fighting") return;
     let telegraphTimer: number;
@@ -246,8 +487,7 @@ export function FightScene() {
     let cooldownTimer: number;
 
     function scheduleNext() {
-      const delay =
-        SHIELD_COOLDOWN_MIN_MS + Math.random() * (SHIELD_COOLDOWN_MAX_MS - SHIELD_COOLDOWN_MIN_MS);
+      const delay = erraticDuration(SHIELD_COOLDOWN_MEAN_MS);
       cooldownTimer = window.setTimeout(() => {
         if (stageRef.current !== "fighting") return;
         // Doesn't raise the shield while the charge attack owns him —
@@ -261,6 +501,7 @@ export function FightScene() {
         telegraphTimer = window.setTimeout(() => {
           if (stageRef.current !== "fighting") return;
           setShieldPhase("active");
+          const activeMs = erraticDuration(SHIELD_ACTIVE_MEAN_MS);
           activeTimer = window.setTimeout(() => {
             if (stageRef.current !== "fighting") return;
             setShieldPhase("lowering");
@@ -269,7 +510,7 @@ export function FightScene() {
               setShieldPhase("idle");
               scheduleNext();
             }, SHIELD_LOWER_MS);
-          }, SHIELD_ACTIVE_MS);
+          }, activeMs);
         }, TELEGRAPH_MS);
       }, delay);
     }
@@ -284,13 +525,16 @@ export function FightScene() {
   }, [stage]);
 
   // The knight shuffles side to side at random, as if trying to dodge out
-  // from under the beam.
+  // from under the beam — erratically now rather than on a smooth random
+  // spread: see erraticDuration and pickErraticKnightTarget for how the
+  // pacing, per-move speed, and target all get the same "quick flick or
+  // long/large stretch, not something comfortably in between" treatment.
   useEffect(() => {
     if (stage !== "fighting") return;
     let moveTimer: number;
 
     function scheduleMove() {
-      const delay = KNIGHT_MOVE_MIN_MS + Math.random() * (KNIGHT_MOVE_MAX_MS - KNIGHT_MOVE_MIN_MS);
+      const delay = erraticDuration(KNIGHT_MOVE_MEAN_MS);
       moveTimer = window.setTimeout(() => {
         if (stageRef.current !== "fighting") return;
         // The charge attack owns knightX (and knightAnimRef) for the
@@ -301,7 +545,7 @@ export function FightScene() {
           scheduleMove();
           return;
         }
-        animateKnightTo(KNIGHT_MIN_X + Math.random() * (KNIGHT_MAX_X - KNIGHT_MIN_X));
+        animateKnightTo(pickErraticKnightTarget(knightXRef.current), erraticDuration(KNIGHT_MOVE_TRANSITION_MS));
         scheduleMove();
       }, delay);
     }
@@ -352,11 +596,30 @@ export function FightScene() {
   // this effect re-fires and queues up the next cooldown from there.
   useEffect(() => {
     if (stage !== "fighting" || chargePhase !== "idle") return;
+    let retryTimer: number;
+
+    // Guards the actual start of the charge — see CHARGE_START_MARGIN_X:
+    // too close to the glove's own reach line already (his idle shuffling
+    // can now bring him right up against it) and the sprint would carry
+    // him across that line almost immediately, with no fair "he's just
+    // now crossing" moment for the plate. Simplest fix is just to wait and
+    // check again rather than starting the charge from there — he keeps
+    // idling normally in the meantime.
+    function attemptCharge() {
+      if (stageRef.current !== "fighting") return;
+      if (knightXRef.current <= KNIGHT_MIN_X + CHARGE_START_MARGIN_X) {
+        retryTimer = window.setTimeout(attemptCharge, CHARGE_START_RETRY_MS);
+        return;
+      }
+      beginCharge();
+    }
+
     const delay = CHARGE_COOLDOWN_MIN_MS + Math.random() * (CHARGE_COOLDOWN_MAX_MS - CHARGE_COOLDOWN_MIN_MS);
-    const cooldownTimer = window.setTimeout(() => {
-      if (stageRef.current === "fighting") beginCharge();
-    }, delay);
-    return () => window.clearTimeout(cooldownTimer);
+    const cooldownTimer = window.setTimeout(attemptCharge, delay);
+    return () => {
+      window.clearTimeout(cooldownTimer);
+      window.clearTimeout(retryTimer);
+    };
   }, [stage, chargePhase, beginCharge]);
 
   // The strike itself: the blade connects partway through the downswing
@@ -387,29 +650,69 @@ export function FightScene() {
     retreat();
   }, [chargePhase, retreat]);
 
-  // The pressure-plate interrupt — the plate itself is always steppable,
-  // but it only actually punches him away while he's still on his way in
-  // ("charging", before the swing itself is committed) *and* he's
-  // physically close enough for the glove to reach (GLOVE_REACH_X) —
-  // stepping on it early, from across the arena, does nothing; the knight
-  // has to actually be there. Reacting to beamX/knightX crossing into
-  // range, mid-effect, is the point here (this *is* the interrupt), not
-  // derivable state that belongs in render.
+  // The pressure-plate interrupt — fires once on the rising edge of the
+  // beam landing on the plate, not on every render it happens to still be
+  // resting there. Parking the beam on the plate *before* he's in range,
+  // then leaving it there while he walks into GLOVE_REACH_X, doesn't knock
+  // him back for free — an activation that isn't already in range instead
+  // goes through armPendingPunch, which gives it a short buffer
+  // (PLATE_ACTIVATION_BUFFER_MS) to actually catch him arriving rather
+  // than resolving dead on the spot. That's what keeps this from just
+  // being "camp the plate and wait" again: the buffer is a fraction of the
+  // full windup+sprint he takes to get there, so an early press still
+  // times out long before he's anywhere close — it only helps a press
+  // that's already roughly on time.
+  //
+  // wasOnPlateRef always gets updated so the edge is tracked accurately
+  // even on ticks where the activation itself is suppressed below (stage
+  // not fighting, an ineligible chargePhase, or the plate still on
+  // cooldown) — an activation attempt that gets swallowed for any of
+  // those reasons still needs the beam to leave and return before it can
+  // try again, same as a normal successful one.
   useEffect(() => {
-    if (chargePhase !== "charging") return;
-    const onPlate = Math.abs(beamX - PRESSURE_PLATE_X) <= PRESSURE_PLATE_HIT_RADIUS;
-    const inGloveReach = Math.abs(knightX - HEART_X) <= GLOVE_REACH_X;
-    if (onPlate && inGloveReach) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- triggerPunch's first setState (chargePhase -> "punched") immediately guards this same condition false on the next run, so this can't cascade past one extra render.
-      triggerPunch();
+    if (stage !== "fighting") {
+      wasOnPlateRef.current = false;
+      return;
     }
-  }, [beamX, knightX, chargePhase, triggerPunch]);
+    const onPlate = Math.abs(beamX - PRESSURE_PLATE_X) <= PRESSURE_PLATE_HIT_RADIUS;
+    const isEdge = onPlate && !wasOnPlateRef.current;
+    wasOnPlateRef.current = onPlate;
+    if (!isEdge) return;
+    if (chargePhase === "striking" || chargePhase === "recovering" || chargePhase === "punched") return;
+    if (plateCooldownRef.current) return;
+    const inGloveReach = Math.abs(knightX - HEART_X) <= GLOVE_REACH_X;
+    if (inGloveReach) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberately synchronous: this is the "already in range the instant the beam lands" case, and the whole point is for the knockback to read as instant rather than trailing a tick behind the press.
+      triggerPlatePunch(true);
+    } else {
+      armPendingPunch();
+    }
+  }, [beamX, knightX, chargePhase, stage, triggerPlatePunch, armPendingPunch]);
 
   function reset() {
     if (knightAnimRef.current !== null) {
       cancelAnimationFrame(knightAnimRef.current);
       knightAnimRef.current = null;
     }
+    if (plateCooldownTimerRef.current !== null) {
+      window.clearTimeout(plateCooldownTimerRef.current);
+      plateCooldownTimerRef.current = null;
+    }
+    if (windupTimerRef.current !== null) {
+      window.clearTimeout(windupTimerRef.current);
+      windupTimerRef.current = null;
+    }
+    if (gloveWhiffTimerRef.current !== null) {
+      window.clearTimeout(gloveWhiffTimerRef.current);
+      gloveWhiffTimerRef.current = null;
+    }
+    if (pendingPunchRafRef.current !== null) {
+      cancelAnimationFrame(pendingPunchRafRef.current);
+      pendingPunchRafRef.current = null;
+    }
+    plateCooldownRef.current = false;
+    wasOnPlateRef.current = false;
+    setGloveWhiff(false);
     setPlayerHealth(MAX_HEALTH);
     setKnightHealth(MAX_HEALTH);
     setShieldPhase("idle");
@@ -428,12 +731,17 @@ export function FightScene() {
   // washed-out stagger right after the punch lands, plus the ordinary
   // brightness bump whenever the beam's actually hurting him.
   const knightFilter = chargePhase === "punched" ? "brightness(0.7) saturate(0.3)" : damagingKnight ? "brightness(1.6)" : "brightness(1)";
-  // Raised for the whole approach (rising in step with the stride, see
-  // CHARGE_APPROACH_MS), swung down for the brief strike itself, and back
-  // to resting for everything else — recovering after a landed hit and
-  // staggering after a punch both just drop it back down.
+  // Raised through both the windup (rising, stationary) and the sprint
+  // that follows (already up, held overhead), swung down for the brief
+  // strike itself, and back to resting for everything else — recovering
+  // after a landed hit and staggering after a punch both just drop it
+  // back down.
   const swordPhase: SwordPhase =
-    chargePhase === "charging" ? "raised" : chargePhase === "striking" ? "slamming" : "rest";
+    chargePhase === "windup" || chargePhase === "charging"
+      ? "raised"
+      : chargePhase === "striking"
+        ? "slamming"
+        : "rest";
 
   return (
     <main className="relative flex min-h-screen flex-col items-center gap-6 px-6 py-10 sm:px-16">
@@ -528,15 +836,39 @@ export function FightScene() {
           <Heart hit={deflecting || chargePhase === "striking"} />
         </div>
 
-        {/* the pressure plate — always steppable, lighting up while he's
-            actually mid-approach so there's some ambient sense of when it
-            matters, even though stepping on it does nothing once he's
-            already out of the glove's reach */}
-        <PressurePlate x={PRESSURE_PLATE_X} armed={chargePhase === "charging"} />
+        {/* the glove's reach boundary, marked with a faint vertical line —
+            the plate can be pressed any time, but it only actually lands
+            the punch while the knight's feet are left of this line
+            (GLOVE_REACH_X); drawn before the knight/plate/glove so they
+            render on top of it rather than under. */}
+        <GloveRangeZone x={HEART_X} reach={GLOVE_REACH_X} />
+
+        {/* the pressure plate — steppable any time, from anywhere in the
+            arena, subject only to its own cooldown (see
+            PRESSURE_PLATE_COOLDOWN_MS) — but see GloveRangeZone above for
+            what actually has to be true for that to do anything. Lights
+            up through the whole windup+sprint so there's some ambient
+            sense of when it matters most, even though it's not the only
+            time it works. */}
+        <PressurePlate
+          x={PRESSURE_PLATE_X}
+          armed={chargePhase === "windup" || chargePhase === "charging"}
+        />
 
         {/* the boxing glove buried under the heart — invisible until the
-            plate's stepped on, then it's what actually launches him */}
-        <BoxingGlove x={HEART_X} y={DEFLECT_Y} punching={chargePhase === "punched"} />
+            plate's stepped on, then it throws a punch either way: chargePhase
+            "punched" is a swing that actually caught him, gloveWhiff is one
+            that didn't reach because he was outside GLOVE_REACH_X. Its
+            reach is passed straight through so the punch's tip always
+            travels exactly as far as the boundary line (GloveRangeZone
+            above) marks, landed or not — the whiff just throws the same
+            full-distance punch into empty air. */}
+        <BoxingGlove
+          x={HEART_X}
+          y={DEFLECT_Y}
+          reach={GLOVE_REACH_X}
+          punching={chargePhase === "punched" || gloveWhiff}
+        />
 
         {/* the shield — always mounted (even at rest, invisible down by his
             side) so phase changes animate as a continuous raise/lower
@@ -561,7 +893,14 @@ export function FightScene() {
       </div>
 
       {stage === "won" && showVictory && (
-        <VictoryScreen title="The Knight Yields" rewardRarity="rare" onClose={() => setShowVictory(false)} />
+        <VictoryScreen
+          title="The Knight Yields"
+          rewardRarity="rare"
+          itemName="Knight's Badge"
+          itemIcon={<BadgeIcon color="#9aa5ad" size={56} />}
+          onReveal={grantKnightVictoryLoot}
+          onClose={() => setShowVictory(false)}
+        />
       )}
 
       {stage !== "fighting" && (
@@ -639,6 +978,28 @@ function Heart({ hit }: { hit: boolean }) {
   );
 }
 
+// A faint vertical line marking the far edge of the glove's reach — purely
+// informational (nothing reacts to it directly), so the player can see at
+// a glance how far right the knight can be standing and still get caught
+// by the pressure plate, rather than having to infer it from trial and
+// error. Only the far edge is drawn: the near edge (x - reach) sits behind
+// the left wall at this reach, so there's nothing to mark there. Kept
+// low-contrast and unlit (no glow) so it reads as a subtle boundary rather
+// than a warning stripe.
+function GloveRangeZone({ x, reach }: { x: number; reach: number }) {
+  const boundary = Math.min(100, x + reach);
+  return (
+    <div
+      className="absolute inset-y-0 w-px"
+      style={{
+        left: `${boundary}%`,
+        background:
+          "linear-gradient(180deg, rgba(255,120,120,0) 0%, rgba(255,120,120,0.16) 20%, rgba(255,120,120,0.16) 85%, rgba(255,120,120,0) 100%)",
+      }}
+    />
+  );
+}
+
 // Sits on the arena floor at the far right — easy to overlook until the
 // charge attack starts (armed), when it lights up to actually draw the
 // eye there.
@@ -658,17 +1019,37 @@ function PressurePlate({ x, armed }: { x: number; armed: boolean }) {
   );
 }
 
-// Buried under the heart, invisible at rest — punches straight out toward
-// wherever the knight actually is (CHARGE_TARGET_X) the instant the plate
-// interrupts him, then retracts.
-function BoxingGlove({ x, y, punching }: { x: number; y: number; punching: boolean }) {
+// Buried under the heart, invisible at rest — punches straight out to
+// exactly the reach boundary (the same GLOVE_REACH_X line drawn by
+// GloveRangeZone), landed or whiffed, then retracts. `left` itself (not a
+// fixed-px transform) is what animates between resting and extended, so
+// the fist's tip always travels the true reach distance in real arena
+// pixels — a percentage of the actual container width, same as the
+// boundary line — rather than some arbitrary short jab that reads as
+// shorter than the range it's supposed to represent.
+function BoxingGlove({
+  x,
+  y,
+  reach,
+  punching,
+}: {
+  x: number;
+  y: number;
+  reach: number;
+  punching: boolean;
+}) {
+  const restLeft = x;
+  const extendedLeft = Math.min(100, x + reach);
   return (
     <div
-      className="absolute -translate-y-1/2 transition-[transform,opacity] ease-out"
+      className="absolute -translate-y-1/2 transition-[left,transform,opacity] ease-out"
       style={{
-        left: `${x}%`,
+        left: `${punching ? extendedLeft : restLeft}%`,
         top: `${y}%`,
-        transform: punching ? "translateX(28px) scale(1)" : "translateX(-6px) scale(0.4)",
+        // anchored by its right edge (the fist's tip), so `left` always
+        // marks exactly where the punch reaches rather than where the
+        // glove's own body happens to start
+        transform: punching ? "translateX(-100%) scale(1)" : "translateX(-100%) scale(0.4)",
         opacity: punching ? 1 : 0,
         transitionDuration: punching ? "180ms" : "260ms",
       }}

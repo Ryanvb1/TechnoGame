@@ -3,18 +3,21 @@
 import { useEffect, useState } from "react";
 import { readAirportUnlocked } from "./siteAccess";
 import { LockOutline } from "./LockOutline";
+import { useSceneTravel } from "./PageTransition";
 
 const MESSAGE_MS = 2200;
 
 // A runway with a small terminal building beside it, tucked in the
 // top-right corner of the hub. Locked by default; purchasable in the
-// kiosk's vending machine (see VendingMachine.tsx) — buying it doesn't
-// unlock a destination yet (nothing's built behind it), just changes what
-// clicking it tells you. The runway is what actually reads as "airport"
-// at a glance; the terminal is deliberately plain next to it.
+// kiosk's vending machine (see VendingMachine.tsx). Once unlocked it's a
+// real destination (see app/airport/page.tsx) — "up" as in taking off,
+// mirrored by that page's own backDirection="down" to land back. The
+// runway is what actually reads as "airport" at a glance; the terminal is
+// deliberately plain next to it.
 export function Airport() {
   const [unlocked, setUnlocked] = useState(false);
   const [showMessage, setShowMessage] = useState(false);
+  const travel = useSceneTravel();
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from localStorage, an external store the server can't see; see comment above.
@@ -22,6 +25,10 @@ export function Airport() {
   }, []);
 
   function handleClick() {
+    if (unlocked) {
+      travel("/airport");
+      return;
+    }
     setShowMessage(true);
     window.setTimeout(() => setShowMessage(false), MESSAGE_MS);
   }
@@ -30,12 +37,12 @@ export function Airport() {
     <div className="fixed right-6 top-6 z-20 sm:right-10 sm:top-10">
       {showMessage && (
         <div className="pointer-events-none absolute top-full right-0 mt-3 w-36 border border-neon-dim bg-background/95 px-3 py-2 text-center text-[0.6rem] uppercase tracking-[0.2em] text-foreground shadow-[0_0_15px_var(--neon-dim)]">
-          {unlocked ? "Coming Soon" : "Locked"}
+          Locked
         </div>
       )}
       <button
         onClick={handleClick}
-        aria-label={unlocked ? "The airport, access purchased" : "A locked airport"}
+        aria-label={unlocked ? "Enter the airport" : "A locked airport"}
         className="group relative flex touch-manipulation flex-col items-end justify-end outline-none"
       >
         <LockOutline unlocked={unlocked} className={`p-2 ${unlocked ? "" : "opacity-50"}`}>
@@ -66,7 +73,7 @@ export function Airport() {
               <div key={left} className="absolute -top-1 h-1 w-1" style={{ left }}>
                 <div
                   className="h-full w-full animate-[fire-glow-pulse_2.2s_ease-in-out_infinite]"
-                  style={{ clipPath: "circle(50% at 50% 50%)", background: "#ffd98a", boxShadow: "0 0 5px #ffd98a" }}
+                  style={{ clipPath: "circle(50% at 50% 50%)", background: "#8fd8ff", boxShadow: "0 0 5px #8fd8ff" }}
                 />
               </div>
             ))}
@@ -74,7 +81,7 @@ export function Airport() {
               <div key={`b${left}`} className="absolute -bottom-1 h-1 w-1" style={{ left }}>
                 <div
                   className="h-full w-full animate-[fire-glow-pulse_2.2s_ease-in-out_infinite]"
-                  style={{ clipPath: "circle(50% at 50% 50%)", background: "#ffd98a", boxShadow: "0 0 5px #ffd98a" }}
+                  style={{ clipPath: "circle(50% at 50% 50%)", background: "#8fd8ff", boxShadow: "0 0 5px #8fd8ff" }}
                 />
               </div>
             ))}
@@ -105,6 +112,12 @@ export function Airport() {
           </div>
         </div>
         </LockOutline>
+        {/* Grows downward from this box's own fixed top edge, same as the
+            "Locked" tooltip above, so it stays on screen instead of the
+            airport being just an unlabeled image. */}
+        <span className="mt-1 text-[0.55rem] uppercase tracking-[0.3em] text-neon-dim transition-colors group-hover:text-neon">
+          Airport
+        </span>
       </button>
     </div>
   );
