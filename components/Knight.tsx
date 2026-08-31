@@ -6,7 +6,7 @@ import { KnightFigure } from "./KnightFigure";
 import { BossFightStartMenu } from "./BossFightStartMenu";
 import { ReplayMissionButton } from "./ReplayMissionButton";
 import { VictoryScreen } from "./VictoryScreen";
-import { BadgeIcon } from "./BadgeIcon";
+import { NecklaceIcon } from "./NecklaceIcon";
 import { grantKnightVictoryLoot, markKnightDefeated, readKnightDefeated } from "./throneState";
 import { readSnailRescued } from "./snailState";
 
@@ -46,8 +46,8 @@ export function Knight() {
         <VictoryScreen
           title="The Knight Yields"
           rewardRarity="rare"
-          itemName="Knight's Badge"
-          itemIcon={<BadgeIcon color="#9aa5ad" size={56} />}
+          itemName="Knight's Necklace"
+          itemIcon={<NecklaceIcon color="#9aa5ad" size={56} />}
           onReveal={grantKnightVictoryLoot}
           // Marks him defeated and reloads once the chest's been closed —
           // the whole throne room's layout (the throne itself, pillars,
@@ -117,8 +117,8 @@ export function KnightReplayTrigger() {
         <VictoryScreen
           title="The Knight Yields"
           rewardRarity="rare"
-          itemName="Knight's Badge"
-          itemIcon={<BadgeIcon color="#9aa5ad" size={56} />}
+          itemName="Knight's Necklace"
+          itemIcon={<NecklaceIcon color="#9aa5ad" size={56} />}
           onReveal={grantKnightVictoryLoot}
           onClose={() => setStage("idle")}
         />

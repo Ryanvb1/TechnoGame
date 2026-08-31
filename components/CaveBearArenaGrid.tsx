@@ -3,6 +3,7 @@ import { ScaredSnail } from "./ScaredSnail";
 import { COLUMNS, ROWS, containsQuadrant, sameQuadrant, type Column, type Quadrant } from "./caveBearGrid";
 import { PANELS_RESULT_HOLD_MS, ROAR_TELEGRAPH_MS } from "./caveBearFightConfig";
 import type { ActiveAttack } from "./useCaveBearSurvivalPhase";
+import type { SnailCosmetics } from "./useSnailCosmetics";
 
 // Portaled by CaveBearFight straight into CaveBackground's own floor-content
 // slot (see CaveBackground.tsx) — this renders *inside* the cave's real
@@ -63,11 +64,13 @@ export function CaveBearArenaGrid({
   jumping,
   litColumn,
   activeAttack,
+  cosmetics,
 }: {
   playerQuadrant: Quadrant;
   jumping: boolean;
   litColumn: Column;
   activeAttack: ActiveAttack;
+  cosmetics: SnailCosmetics;
 }) {
   const roaring = activeAttack?.kind === "roar";
   // A brief rattle right as the rocks actually land — set directly on this
@@ -107,14 +110,12 @@ export function CaveBearArenaGrid({
           const quadrant: Quadrant = { row, col };
           let telegraphing = false;
           let resolving = false;
-          let clawing = false;
           let panelsLit = false;
           let panelsCorrect = false;
           let panelsFalling = false;
 
           if (activeAttack?.kind === "scratch") {
             resolving = containsQuadrant(activeAttack.targetQuadrants, quadrant);
-            clawing = resolving;
           } else if (activeAttack?.kind === "roar") {
             const targeted = containsQuadrant(activeAttack.targetQuadrants, quadrant);
             telegraphing = targeted && activeAttack.stage === "telegraph";
@@ -174,17 +175,14 @@ export function CaveBearArenaGrid({
               )}
               {resolving && (
                 <div
-                  // Keyed by strike (scratch only) so each of the 3 rapid
-                  // hits remounts and replays the flash instead of the
-                  // animation staying stuck on strike 0 — roar never
-                  // repeats within one attack, so it has no strike to key
-                  // on and just keeps its natural mount-on-resolve replay.
-                  key={activeAttack?.kind === "scratch" ? activeAttack.strike : undefined}
+                  // Keyed by strike so the impact tint remounts and replays.
+                  // The physical clawing now comes from the giant bear
+                  // above; the floor only flashes where that arm lands.
+                  key={`flash-${activeAttack?.kind === "scratch" ? activeAttack.strike : "roar"}`}
                   className="absolute inset-0 animate-[toad-hit-flash_0.4s_ease-out] opacity-80"
                   style={{ background: activeAttack?.kind === "scratch" ? ATTACK_COLOR.scratch : ATTACK_COLOR.roar }}
                 />
               )}
-              {clawing && <ClawMarks key={activeAttack?.kind === "scratch" ? activeAttack.strike : undefined} />}
               {panelsLit && (
                 <div
                   className="absolute inset-[6%] animate-[pillar-fire-warn_0.4s_ease-in-out_infinite] opacity-80"
@@ -202,12 +200,15 @@ export function CaveBearArenaGrid({
 
       {/* Roar's rocks — one per targeted quadrant, falling for the whole
           telegraph window and landing (with a dust burst) right as resolve
-          begins. Keyed by quadrant so the same element persists across
-          that telegraph->resolve transition rather than remounting (which
-          would restart the fall mid-way). */}
+          begins. Keyed by wave+quadrant: that keeps the same element
+          mounted across one wave's own telegraph->resolve transition
+          (so its fall doesn't restart mid-way), while still forcing a
+          fresh mount — and a fresh fall — for any quadrant that's
+          targeted again in a *later* wave, rather than silently reusing
+          the previous wave's already-landed rock. */}
       {roaring &&
         activeAttack.targetQuadrants.map((q) => (
-          <FallingRock key={`${q.row}-${q.col}`} quadrant={q} resolving={activeAttack.stage === "resolve"} />
+          <FallingRock key={`${activeAttack.wave}-${q.row}-${q.col}`} quadrant={q} resolving={activeAttack.stage === "resolve"} />
         ))}
 
       {/* The player token — a single persistent element whose position
@@ -221,7 +222,7 @@ export function CaveBearArenaGrid({
             animation: playerFalling ? `snail-fall-lava ${PANELS_RESULT_HOLD_MS}ms ease-in forwards` : undefined,
           }}
         >
-          <ScaredSnail fear={playerTargeted || playerFalling ? 0.9 : 0.15} />
+          <ScaredSnail fear={playerTargeted || playerFalling ? 0.9 : 0.15} {...cosmetics} />
         </div>
       </Upright>
     </div>
@@ -313,29 +314,6 @@ function FallingRock({ quadrant, resolving }: { quadrant: Quadrant; resolving: b
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-// Scratch's claw marks — three diagonal streaks torn across a targeted
-// tile, staggered slightly so they read as one swipe rather than firing
-// all at once. Flat within the cell (not billboarded) since these are
-// gouges *in* the floor, not standing objects.
-function ClawMarks() {
-  return (
-    <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-[8%]">
-      {[0, 1, 2].map((i) => (
-        <div key={i} className="h-[75%] w-[9%]" style={{ transform: "rotate(-22deg)" }}>
-          <div
-            className="h-full w-full"
-            style={{
-              background:
-                "linear-gradient(180deg, transparent 0%, rgba(30,4,2,0.9) 18%, rgba(90,10,6,0.95) 50%, rgba(30,4,2,0.9) 82%, transparent 100%)",
-              animation: `claw-swipe-mark 350ms ease-out ${i * 40}ms both`,
-            }}
-          />
-        </div>
-      ))}
     </div>
   );
 }

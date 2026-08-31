@@ -8,11 +8,14 @@ import { CaveBearSpearAim } from "./CaveBearSpearAim";
 import { CaveBearHealthBars } from "./CaveBearHealthBars";
 import { useCaveBearSurvivalPhase } from "./useCaveBearSurvivalPhase";
 import { useCaveBearDamagePhase } from "./useCaveBearDamagePhase";
+import { useSnailCosmetics } from "./useSnailCosmetics";
 import { useCaveBearControls } from "./caveBearInput";
 import { useHideCompanionSnail } from "./companionSnail";
 import { DefeatProgressBar } from "./DefeatProgressBar";
+import { useSoundEffects } from "./MusicProvider";
 import { clampColumn, clampRow, type Quadrant } from "./caveBearGrid";
 import {
+  INITIAL_ATTACK_DELAY_MS,
   JUMP_AIRBORNE_MS,
   MAX_BEAR_HEALTH,
   MAX_PLAYER_HEALTH,
@@ -42,6 +45,8 @@ export function CaveBearFight({
   onVictory: () => void;
   onRetreat: () => void;
 }) {
+  const cosmetics = useSnailCosmetics();
+  const playSound = useSoundEffects();
   useHideCompanionSnail(true);
 
   // The ref is populated by CaveBackground once it mounts (a sibling
@@ -86,15 +91,17 @@ export function CaveBearFight({
   // calling setState in reaction to a value change is exactly what this
   // project's lint config flags.
   const applyPlayerDamage = useCallback((amount: number) => {
+    playSound("player-hit");
     setPlayerHealth((h) => {
       const next = Math.max(0, h - amount);
       if (next <= 0) setStage((s) => (s === "won" ? s : "lost"));
       return next;
     });
-  }, []);
+  }, [playSound]);
   const applyBearDamage = useCallback(
     (amount: number) => {
       if (amount <= 0) return;
+      playSound("enemy-hit");
       setBearHealth((h) => {
         const next = Math.max(0, h - amount);
         if (next <= 0) {
@@ -106,7 +113,7 @@ export function CaveBearFight({
         return next;
       });
     },
-    [onVictory],
+    [onVictory, playSound],
   );
 
   const handleMoveCol = useCallback((delta: -1 | 1) => {
@@ -117,16 +124,17 @@ export function CaveBearFight({
   }, []);
   const handleJump = useCallback(() => {
     if (jumpingRef.current) return;
+    playSound("jump");
     setJumping(true);
     jumpTimerRef.current = window.setTimeout(() => setJumping(false), JUMP_AIRBORNE_MS);
-  }, []);
+  }, [playSound]);
 
   useCaveBearControls({ enabled: stage === "survival", onMoveCol: handleMoveCol, onMoveRow: handleMoveRow, onJump: handleJump });
 
   const { activeAttack, litColumn } = useCaveBearSurvivalPhase({
     active: stage === "survival",
     playerQuadrantRef,
-    startDelayMs: cameFromDamagePhase ? POST_DAMAGE_PHASE_COOLDOWN_MS : 0,
+    startDelayMs: cameFromDamagePhase ? POST_DAMAGE_PHASE_COOLDOWN_MS : INITIAL_ATTACK_DELAY_MS,
     onDamage: applyPlayerDamage,
     // Guarded: applyPlayerDamage may have already moved the stage on to
     // "lost" by the time this fires (the effect's own cleanup — triggered
@@ -151,6 +159,27 @@ export function CaveBearFight({
       setCameFromDamagePhase(true);
     },
   });
+
+  const previousStageRef = useRef<Stage>("survival");
+  useEffect(() => {
+    if (previousStageRef.current === stage) return;
+    previousStageRef.current = stage;
+    if (stage === "won") playSound("victory");
+    if (stage === "lost") playSound("defeat");
+    if (stage === "damage") playSound("boss-roar");
+  }, [playSound, stage]);
+
+  useEffect(() => {
+    if (!activeAttack) return;
+    if (activeAttack.kind === "scratch") playSound("impact");
+    if (activeAttack.kind === "roar") playSound(activeAttack.stage === "telegraph" ? "boss-roar" : "impact");
+    if (activeAttack.kind === "panels" && activeAttack.stage === "reveal" && activeAttack.litQuadrant) playSound("plate");
+  }, [activeAttack, playSound]);
+
+  useEffect(() => {
+    if (!shot) return;
+    playSound("throw");
+  }, [playSound, shot]);
 
   function resetFight() {
     setCameFromDamagePhase(false);
@@ -203,8 +232,16 @@ export function CaveBearFight({
       <div ref={arenaRef} className="relative flex w-full max-w-md flex-col items-center gap-3 sm:max-w-lg">
         {stage !== "lost" && (
           <div
-            className="relative flex justify-center transition-transform duration-300 ease-out"
-            style={{ transform: stage === "damage" ? `translateX(${bearDriftX - 50}%)` : "translateX(0)" }}
+            className="relative z-20 flex justify-center transition-transform duration-300 ease-out"
+            style={{
+              transform:
+                stage === "damage"
+                  ? `translateX(${bearDriftX - 50}%) scale(1.1)`
+                  : activeAttack?.kind === "scratch"
+                    ? "translateY(58px) scale(1.78)"
+                    : "translateY(34px) scale(1.55)",
+              transformOrigin: "50% 100%",
+            }}
           >
             <CaveBear phase="enraged" action={bearAction} scale={1} scratchLean={scratchLean} scratchStrike={scratchStrike} />
           </div>
@@ -214,9 +251,8 @@ export function CaveBearFight({
           <div
             className="relative h-36 w-full cursor-crosshair touch-none select-none border border-neon-dim/30"
             onPointerMove={handlePointerMove}
-            onPointerDown={handleShoot}
           >
-            <CaveBearSpearAim bearDriftX={bearDriftX} aimX={aimX} shot={shot} />
+            <CaveBearSpearAim bearDriftX={bearDriftX} aimX={aimX} shot={shot} onShoot={handleShoot} />
           </div>
         )}
       </div>
@@ -224,23 +260,29 @@ export function CaveBearFight({
       {stage === "survival" &&
         floorSlot &&
         createPortal(
-          <CaveBearArenaGrid playerQuadrant={playerQuadrant} jumping={jumping} litColumn={litColumn} activeAttack={activeAttack} />,
+          <CaveBearArenaGrid
+            playerQuadrant={playerQuadrant}
+            jumping={jumping}
+            litColumn={litColumn}
+            activeAttack={activeAttack}
+            cosmetics={cosmetics}
+          />,
           floorSlot,
         )}
 
       {stage === "survival" && activeAttack?.kind === "panels" && (
-        <p className="animate-[fire-glow-pulse_1.2s_ease-in-out_infinite] text-center text-[0.6rem] uppercase tracking-[0.2em] text-neon">
+        <p className="relative z-30 mt-10 animate-[fire-glow-pulse_1.2s_ease-in-out_infinite] text-center text-[0.6rem] uppercase tracking-[0.2em] text-neon sm:mt-12">
           {activeAttack.stage === "reveal" ? "Watch the order the plates light up..." : "Recite the order — get to the next plate!"}
         </p>
       )}
       {stage === "survival" && activeAttack?.kind !== "panels" && (
-        <p className="text-center text-[0.6rem] uppercase tracking-[0.2em] text-foreground/50">
+        <p className="relative z-30 mt-10 text-center text-[0.6rem] uppercase tracking-[0.2em] text-foreground/50 sm:mt-12">
           WASD to move &middot; Space to jump &middot; stay clear of the lit column&apos;s opposite side
         </p>
       )}
       {stage === "damage" && (
         <p className="animate-[fire-glow-pulse_1.2s_ease-in-out_infinite] text-center text-[0.6rem] uppercase tracking-[0.2em] text-neon">
-          Move to aim, click to shoot &mdash; he&apos;s moving, so track him before you fire
+          Aim &middot; click the bow to fire
         </p>
       )}
 

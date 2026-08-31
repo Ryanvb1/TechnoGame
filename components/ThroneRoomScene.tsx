@@ -6,35 +6,29 @@ import { Knight, KnightReplayTrigger } from "./Knight";
 import { Molotov } from "./Molotov";
 import { BossFightStartMenu } from "./BossFightStartMenu";
 import { ThroneHallBackground, type BeamShot, type PillarFightState } from "./ThroneHallBackground";
-import { ThroneApproachFootsteps } from "./ThroneApproachFootsteps";
 import { DefeatProgressBar } from "./DefeatProgressBar";
 import { ReplayMissionButton } from "./ReplayMissionButton";
 import { VictoryScreen } from "./VictoryScreen";
 import { RainbowShellIcon } from "./RainbowShellIcon";
+import { NecklaceIcon } from "./NecklaceIcon";
 import { addToInventory } from "./inventory";
+import { useMusicTheme, useSoundEffects } from "./MusicProvider";
 import { readKnightDefeated, readToadDefeated, markToadDefeated } from "./throneState";
-import { useHideCompanionSnail } from "./companionSnail";
 import {
   BEAM_TRAVEL_MS,
   PILLAR_COLORS,
   REFLECT_TRAVEL_MS,
   SLIME_DURATION_MS,
-  SNAIL_MAX_TRAVEL_MS,
-  SNAIL_MIN_TRAVEL_MS,
-  SNAIL_SPEED_PX_PER_MS,
   advancePillarRotation,
   colorForPillar,
   pillarForColor,
   readPillarRotation,
 } from "./pillarColors";
 
-// "briefing" sits between the footsteps finishing and the molotov becoming
-// throwable — the toad's already risen by then, but the boss-fight start
-// menu gates actually being able to act on him until it's dismissed.
-type Sequence = "idle" | "approaching" | "briefing" | "revealed" | "angry" | "fighting" | "won" | "lost";
+// The boss briefing appears after the toad finishes rising and gates the
+// molotov until the player begins the fight.
+type Sequence = "idle" | "briefing" | "revealed" | "angry" | "fighting" | "won" | "lost";
 
-const SNAIL_ENTRANCE_DELAY_MS = 900;
-const BUBBLE_HOLD_MS = 1600;
 const ANGRY_INTRO_MS = 2800;
 // The instant the beam lands, a pillar that isn't already slimed gets one
 // last window to be saved before it's locked in — slime applied anywhere
@@ -44,6 +38,9 @@ const ANGRY_INTRO_MS = 2800;
 // the fire's actually up — see the fight effect below for why that overlap
 // used to let a too-late slime still get credited as a reflect.
 const SLIME_BUFFER_MS = 1000;
+// Slime is a shared player ability, so placing it at any pillar locks every
+// pillar interaction until this cooldown has elapsed.
+const SLIME_COOLDOWN_MS = 2000;
 // Once the buffer above has expired without a save, the pillar is already
 // doomed — this is purely the cosmetic delay before the fire visual gives
 // way to the burned/destroyed state, not a second chance.
@@ -81,19 +78,18 @@ export function ThroneRoomScene() {
   // to re-win within the same page session first.
   const [toadDefeated, setToadDefeated] = useState(false);
   const [sequence, setSequence] = useState<Sequence>("idle");
+  const playSound = useSoundEffects();
+  useMusicTheme(sequence === "angry" || sequence === "fighting" ? "toad-boss" : null);
   const [pillarRotation, setPillarRotation] = useState(0);
   const [pillarStatuses, setPillarStatuses] = useState<PillarFightState[]>(emptyPillarStatuses());
   const [molotovThrown, setMolotovThrown] = useState(false);
   const [molotovTarget, setMolotovTarget] = useState<{ dx: number; dy: number } | null>(null);
-  const [snailRevealed, setSnailRevealed] = useState(false);
-  const [snailBubble, setSnailBubble] = useState(false);
   const [toadHealth, setToadHealth] = useState(TOAD_MAX_HEALTH);
   const [toadHit, setToadHit] = useState(false);
   const [showVictory, setShowVictory] = useState(false);
   const [toadRisen, setToadRisen] = useState(false);
   const [slimeActive, setSlimeActive] = useState<boolean[]>(() => Array(PILLAR_COLORS.length).fill(false));
-  const [snailPos, setSnailPos] = useState<number | null>(null);
-  const [snailTravelMs, setSnailTravelMs] = useState(SNAIL_MIN_TRAVEL_MS);
+  const [slimeReady, setSlimeReady] = useState(true);
   const [beamShot, setBeamShot] = useState<BeamShot | null>(null);
   const [reflectShot, setReflectShot] = useState<BeamShot | null>(null);
   const [pillarColorsChanged, setPillarColorsChanged] = useState(false);
@@ -104,13 +100,12 @@ export function ThroneRoomScene() {
   // rotations that happen live, in front of them — see the effect below.
   const pillarRotationMountedRef = useRef(false);
   const slimeActiveRef = useRef<boolean[]>(slimeActive);
-  const snailTravelingRef = useRef(false);
+  const slimeReadyRef = useRef(true);
   const introTimers = useRef<number[]>([]);
-  const snailTimers = useRef<number[]>([]);
   const slimeExpireTimers = useRef<(number | null)[]>(Array(PILLAR_COLORS.length).fill(null));
+  const slimeCooldownTimer = useRef<number | null>(null);
   const molotovOriginRef = useRef<HTMLDivElement>(null);
   const toadMouthRef = useRef<HTMLDivElement>(null);
-  const snailRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from localStorage, an external store the server can't see; see comment above.
@@ -118,12 +113,6 @@ export function ThroneRoomScene() {
     setToadDefeated(readToadDefeated());
     setPillarRotation(readPillarRotation());
   }, []);
-
-  // Borrows the player's own companion snail (see LocationSnail) for the
-  // fight's pillar-dousing ally rather than having two independent snails
-  // on screen at once — hidden for exactly as long as SnailAgent (rendered
-  // by ThroneHallBackground below) is revealed.
-  useHideCompanionSnail(snailRevealed);
 
   useEffect(() => {
     pillarRotationRef.current = pillarRotation;
@@ -134,11 +123,17 @@ export function ThroneRoomScene() {
   // back through "briefing"/"fighting" before it can become "won" again.
   useEffect(() => {
     if (sequence !== "won") return;
+    playSound("victory");
     // eslint-disable-next-line react-hooks/set-state-in-effect -- re-arms the victory screen for this specific "won" transition (including replays, which route back through "briefing"/"fighting" first), not a one-time mount default.
     setShowVictory(true);
     setToadDefeated(true);
     markToadDefeated();
-  }, [sequence]);
+  }, [playSound, sequence]);
+
+  useEffect(() => {
+    if (sequence === "lost") playSound("defeat");
+    if (sequence === "angry") playSound("boss-roar");
+  }, [playSound, sequence]);
 
   // Every rotation after the first re-shuffles which star sits on which
   // pillar (a retreat or a burned pillar both advance it) — pulse every
@@ -161,7 +156,7 @@ export function ThroneRoomScene() {
     slimeActiveRef.current = slimeActive;
   }, [slimeActive]);
 
-  // Clear any pending intro/snail/slime timers on unmount so they can't
+  // Clear any pending intro/slime timers on unmount so they can't
   // fire state updates after the fact. These refs are mutable accumulators
   // (timer IDs get pushed onto them well after this effect first runs),
   // not DOM nodes — the cleanup deliberately reads whatever's in them *at
@@ -171,14 +166,14 @@ export function ThroneRoomScene() {
     return () => {
       // eslint-disable-next-line react-hooks/exhaustive-deps -- see comment above.
       introTimers.current.forEach((id) => window.clearTimeout(id));
-      snailTimers.current.forEach((id) => window.clearTimeout(id));
       slimeExpireTimers.current.forEach((id) => id && window.clearTimeout(id));
+      if (slimeCooldownTimer.current !== null) window.clearTimeout(slimeCooldownTimer.current);
     };
   }, []);
 
   function handleApproach() {
     if (sequence !== "idle") return;
-    setSequence("approaching");
+    setSequence("briefing");
   }
 
   function handleMolotovClick() {
@@ -194,17 +189,17 @@ export function ThroneRoomScene() {
       });
     }
     setMolotovThrown(true);
+    playSound("throw");
     setSequence("angry");
     introTimers.current.push(
       window.setTimeout(() => {
-        setSnailRevealed(true);
-        setSnailBubble(true);
-      }, SNAIL_ENTRANCE_DELAY_MS),
-      window.setTimeout(() => setSnailBubble(false), SNAIL_ENTRANCE_DELAY_MS + BUBBLE_HOLD_MS),
-      window.setTimeout(() => {
         setPillarStatuses(emptyPillarStatuses());
         setToadHealth(TOAD_MAX_HEALTH);
-        setSlimeActive(Array(PILLAR_COLORS.length).fill(false));
+        const clearedSlime = Array<boolean>(PILLAR_COLORS.length).fill(false);
+        slimeActiveRef.current = clearedSlime;
+        setSlimeActive(clearedSlime);
+        slimeReadyRef.current = true;
+        setSlimeReady(true);
         setSequence("fighting");
       }, ANGRY_INTRO_MS)
     );
@@ -213,85 +208,56 @@ export function ThroneRoomScene() {
   // Applies (or refreshes) slime at a pillar's base, resetting its
   // independent 5s countdown regardless of whether it was already active.
   function applySlime(position: number) {
-    setSlimeActive((prev) => {
-      const next = [...prev];
-      next[position] = true;
-      return next;
-    });
+    const next = [...slimeActiveRef.current];
+    next[position] = true;
+    slimeActiveRef.current = next;
+    setSlimeActive(next);
     const prevTimer = slimeExpireTimers.current[position];
     if (prevTimer) window.clearTimeout(prevTimer);
     slimeExpireTimers.current[position] = window.setTimeout(() => {
-      setSlimeActive((prev) => {
-        const next = [...prev];
-        next[position] = false;
-        return next;
-      });
+      const expired = [...slimeActiveRef.current];
+      expired[position] = false;
+      slimeActiveRef.current = expired;
+      setSlimeActive(expired);
       slimeExpireTimers.current[position] = null;
     }, SLIME_DURATION_MS);
   }
 
-  // How long the crawl to a given on-screen point should take, based on
-  // the snail's actual current position — the two live in unrelated
-  // layout containers (see pillarBaseXY's comment in ThroneHallBackground)
-  // so there's no shared percentage space to compute this from; real
-  // measured pixels are the only reliable common ground.
-  function computeTravelMs(basePoint: { x: number; y: number }): number {
-    const snailEl = snailRef.current;
-    if (!snailEl) return SNAIL_MIN_TRAVEL_MS;
-    const snailRect = snailEl.getBoundingClientRect();
-    const dx = basePoint.x - (snailRect.left + snailRect.width / 2);
-    const dy = basePoint.y - snailRect.bottom;
-    const distance = Math.hypot(dx, dy);
-    const ms = Math.round(distance / SNAIL_SPEED_PX_PER_MS);
-    return Math.min(SNAIL_MAX_TRAVEL_MS, Math.max(SNAIL_MIN_TRAVEL_MS, ms));
-  }
-
-  // Sends the snail crawling to a pillar's base; once he arrives he lays
-  // the slime himself. Only one trip at a time — a pillar clicked while
-  // he's already en route elsewhere is ignored until he's free again.
-  function dispatchSnail(position: number, basePoint: { x: number; y: number }) {
-    if (snailPos === position) {
-      if (!snailTravelingRef.current) applySlime(position);
-      return;
-    }
-    if (snailTravelingRef.current) return;
-    const travelMs = computeTravelMs(basePoint);
-    snailTravelingRef.current = true;
-    setSnailTravelMs(travelMs);
-    setSnailPos(position);
-    const travelTimer = window.setTimeout(() => {
-      snailTravelingRef.current = false;
-      applySlime(position);
-    }, travelMs);
-    snailTimers.current.push(travelTimer);
-  }
-
-  function handlePillarClick(position: number, basePoint: { x: number; y: number }) {
-    if (sequence !== "fighting") return;
+  function handlePillarInteract(position: number) {
+    if (sequence !== "fighting" || !slimeReadyRef.current) return;
     const status = pillarStatuses[position]?.status;
     if (status === "saved" || status === "burned") return;
-    dispatchSnail(position, basePoint);
+
+    slimeReadyRef.current = false;
+    setSlimeReady(false);
+    applySlime(position);
+    playSound("slime");
+    slimeCooldownTimer.current = window.setTimeout(() => {
+      slimeReadyRef.current = true;
+      setSlimeReady(true);
+      slimeCooldownTimer.current = null;
+    }, SLIME_COOLDOWN_MS);
   }
 
   function resetEncounter() {
     setPillarStatuses(emptyPillarStatuses());
     setToadHealth(TOAD_MAX_HEALTH);
     setToadHit(false);
-    setSlimeActive(Array(PILLAR_COLORS.length).fill(false));
-    setSnailPos(null);
+    const clearedSlime = Array<boolean>(PILLAR_COLORS.length).fill(false);
+    slimeActiveRef.current = clearedSlime;
+    setSlimeActive(clearedSlime);
     setBeamShot(null);
     setReflectShot(null);
     setMolotovThrown(false);
     setMolotovTarget(null);
-    setSnailRevealed(false);
-    setSnailBubble(false);
     setSequence("idle");
 
-    snailTravelingRef.current = false;
-    snailTimers.current.forEach((id) => window.clearTimeout(id));
-    snailTimers.current = [];
     slimeExpireTimers.current.forEach((id) => id && window.clearTimeout(id));
     slimeExpireTimers.current = Array(PILLAR_COLORS.length).fill(null);
+    if (slimeCooldownTimer.current !== null) window.clearTimeout(slimeCooldownTimer.current);
+    slimeCooldownTimer.current = null;
+    slimeReadyRef.current = true;
+    setSlimeReady(true);
   }
 
   function handleRetreat() {
@@ -347,6 +313,7 @@ export function ThroneRoomScene() {
         return next;
       });
       setBeamShot({ position, key: colorIndex });
+      playSound("fire");
       beamClearTimer = window.setTimeout(() => {
         if (!cancelled) setBeamShot(null);
       }, BEAM_VISIBLE_MS);
@@ -359,6 +326,7 @@ export function ThroneRoomScene() {
         window.clearTimeout(bufferTimer);
         window.clearTimeout(burnTimer);
         if (reflected) {
+          playSound("reflect");
           setToadHealth((h) => Math.max(0, h - 1));
           setPillarStatuses((prev) => {
             const next = [...prev];
@@ -374,11 +342,13 @@ export function ThroneRoomScene() {
           }, REFLECT_VISIBLE_MS);
           advanceTimer = window.setTimeout(() => targetColor(colorIndex + 1), ATTACK_DELAY_MS);
         } else {
+          playSound("impact");
           setPillarStatuses((prev) => {
             const next = [...prev];
             next[position] = { status: "burned" };
             return next;
           });
+          playSound("fire");
           advancePillarRotation();
           setPillarRotation(readPillarRotation());
           loseTimer = window.setTimeout(() => {
@@ -431,7 +401,7 @@ export function ThroneRoomScene() {
       window.clearTimeout(advanceTimer);
       window.clearTimeout(loseTimer);
     };
-  }, [sequence]);
+  }, [playSound, sequence]);
 
   // Defeat isn't a dead end the player has to click out of — the whole
   // encounter resets itself back to "approach the throne again" once the
@@ -453,7 +423,6 @@ export function ThroneRoomScene() {
     sequence === "revealed" ||
     sequence === "angry" ||
     sequence === "fighting" ||
-    sequence === "won" ||
     sequence === "lost";
   const pillarColors = knightDefeated
     ? Array.from({ length: PILLAR_COLORS.length }, (_, i) => colorForPillar(i, pillarRotation))
@@ -501,12 +470,7 @@ export function ThroneRoomScene() {
         pillarColorsChanged={pillarColorsChanged}
         pillarStates={sequence === "fighting" || sequence === "won" || sequence === "lost" ? pillarStatuses : undefined}
         slimeActive={slimeActive}
-        onPillarClick={sequence === "fighting" ? handlePillarClick : undefined}
-        snailRevealed={snailRevealed}
-        snailBubble={snailBubble}
-        snailPos={snailPos}
-        snailRef={snailRef}
-        snailTravelMs={snailTravelMs}
+        onPillarClick={sequence === "fighting" && slimeReady ? handlePillarInteract : undefined}
         beamShot={beamShot}
         reflectShot={reflectShot}
       />
@@ -541,7 +505,7 @@ export function ThroneRoomScene() {
           {/* Knight stands beside the pile rather than flowing below it —
               flowing below pushed the page tall enough that he'd render
               past the fold, effectively cut off at the bottom. */}
-          {knightDefeated ? (
+          {knightDefeated && !toadDefeated ? (
             <button
               onClick={handleApproach}
               disabled={sequence !== "idle"}
@@ -579,7 +543,7 @@ export function ThroneRoomScene() {
             </div>
           )}
 
-          {knightDefeated && (
+          {knightDefeated && (!toadDefeated || sequence !== "idle") && (
             <Molotov
               active={sequence === "revealed"}
               thrown={molotovThrown}
@@ -589,10 +553,6 @@ export function ThroneRoomScene() {
             />
           )}
         </div>
-
-        {sequence === "approaching" && (
-          <ThroneApproachFootsteps onComplete={() => setSequence("briefing")} />
-        )}
 
         {sequence === "briefing" && toadRisen && (
           <BossFightStartMenu
@@ -614,6 +574,9 @@ export function ThroneRoomScene() {
 
         {sequence === "fighting" && (
           <div className="flex flex-col items-center gap-3">
+            <p className="text-[0.58rem] font-bold uppercase tracking-[0.2em] text-neon">
+              WASD to a pillar base · E to place slime
+            </p>
             <div className="flex items-center gap-2">
               <span className="text-[0.55rem] uppercase tracking-[0.2em] text-foreground/40">Toad</span>
               <div className="flex gap-1">
@@ -644,6 +607,8 @@ export function ThroneRoomScene() {
             rewardRarity="epic"
             itemName="Rainbow Shell"
             itemIcon={<RainbowShellIcon size={56} />}
+            secondaryItemName="Toad Necklace"
+            secondaryItemIcon={<NecklaceIcon color="#7fae4a" size={30} />}
             // The named Rainbow Shell is what the chest actually shows;
             // the toad's own badge (see inventory.ts and Locker.tsx) rides
             // along silently alongside it. Both idempotent, so replaying
@@ -652,24 +617,13 @@ export function ThroneRoomScene() {
               addToInventory("rainbow-shell");
               addToInventory("toad-badge");
             }}
-            onClose={() => setShowVictory(false)}
+            onClose={() => {
+              setShowVictory(false);
+              resetEncounter();
+            }}
           />
         )}
 
-        {sequence === "won" && (
-          <>
-            <ReplayMissionButton label="Replay Toad" align="right" onClick={replayToad} />
-            <div className="flex flex-col items-center gap-4">
-              <p className="text-lg uppercase tracking-[0.3em] text-neon">The toad is beaten back.</p>
-              <button
-                onClick={resetEncounter}
-                className="touch-manipulation border border-neon-dim px-5 py-2 text-xs uppercase tracking-[0.2em] text-neon-dim transition-colors hover:text-neon"
-              >
-                Step Back
-              </button>
-            </div>
-          </>
-        )}
         {/* "lost" gets no button here — the Defeat overlay above handles
             that beat, then resets the whole encounter on its own */}
       </div>

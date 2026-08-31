@@ -163,6 +163,7 @@ export function FairytaleBackground() {
       {/* tilted 3D grass field the gnome actually stands on, instead of
           floating over an empty background */}
       <div
+        data-snail-boundary
         className="absolute inset-x-0 bottom-0 overflow-hidden"
         style={{ height: `${GROUND_HEIGHT_PCT}%`, perspective: "1400px" }}
       >

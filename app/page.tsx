@@ -1,6 +1,5 @@
 import { Hub } from "@/components/Hub";
 import { AmbientDetails } from "@/components/AmbientDetails";
-import { HomeSnail } from "@/components/HomeSnail";
 
 export default function Home() {
   return (
@@ -15,7 +14,6 @@ export default function Home() {
       />
       <AmbientDetails />
       <Hub />
-      <HomeSnail />
     </main>
   );
 }

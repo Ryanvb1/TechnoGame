@@ -11,8 +11,10 @@ import { WaterPortal } from "./WaterPortal";
 import { markTacticViewed, readTacticViewed } from "./tacticState";
 import { readSnailRescued } from "./snailState";
 import { readOrbMissionCompleted } from "./gnomeProgress";
+import { useMusic } from "./MusicProvider";
 
 export function Hub() {
+  const { volume, setVolume } = useMusic();
   // This page is statically generated, so the server/build-time HTML always
   // has to assume "not viewed" (no localStorage on the server). Starting
   // state at false matches that markup exactly, then this effect syncs in
@@ -76,13 +78,22 @@ export function Hub() {
               >
                 About
               </Link>
-              <Link
-                href="/writing"
-                onClick={() => setShowSettings(false)}
-                className="text-neon-dim transition-colors hover:text-neon"
-              >
-                Writing
-              </Link>
+              <label className="flex w-52 flex-col gap-2 text-neon-dim">
+                <span className="flex items-center justify-between">
+                  <span>Volume</span>
+                  <span className="tabular-nums text-neon">{Math.round(volume * 100)}%</span>
+                </span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={Math.round(volume * 100)}
+                  onChange={(event) => setVolume(Number(event.target.value) / 100)}
+                  aria-label="Music volume"
+                  className="h-1 w-full cursor-pointer accent-[var(--neon)]"
+                />
+              </label>
               <Link
                 href="/contact"
                 onClick={() => setShowSettings(false)}

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent, MouseEvent } from "react";
 import { collectOrb, readOrbCollected, readOrbMissionStarted, type OrbId } from "./gnomeProgress";
+import { useSoundEffects } from "./MusicProvider";
 
 const REVEAL_MS = 350;
 const COLLECT_MS = 400;
@@ -35,6 +36,7 @@ type Phase = "hidden" | "revealing" | "collecting";
 // covering their whole scene, and a nested <button> inside a <button> is
 // invalid HTML that Next.js flags as a hydration error.
 export function CollectibleOrb({ id, style }: { id: OrbId; style?: CSSProperties }) {
+  const playSound = useSoundEffects();
   const [collected, setCollected] = useState(false);
   const [missionStarted, setMissionStarted] = useState(false);
   const [phase, setPhase] = useState<Phase>("hidden");
@@ -60,6 +62,7 @@ export function CollectibleOrb({ id, style }: { id: OrbId; style?: CSSProperties
     // inside (Cave/Airport/LockedChest's own "Locked" click handler).
     e.stopPropagation();
     if (phase !== "hidden") return;
+    playSound("reward");
     setPhase("revealing");
     timers.current.push(
       window.setTimeout(() => {
@@ -90,6 +93,7 @@ export function CollectibleOrb({ id, style }: { id: OrbId; style?: CSSProperties
       onClick={collect}
       onKeyDown={handleKeyDown}
       aria-label="A glinting orb"
+      data-sfx="none"
       className="group pointer-events-auto absolute h-4 w-4 touch-manipulation outline-none"
       style={{
         ...style,

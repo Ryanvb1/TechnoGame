@@ -80,6 +80,7 @@ export function BossFightStartMenu({
             </button>
             <button
               onClick={onBegin}
+              data-sfx="boss-start"
               className="touch-manipulation border border-neon px-5 py-2 text-xs uppercase tracking-[0.3em] text-neon transition-colors hover:bg-neon/10"
             >
               {beginLabel}
@@ -117,6 +118,9 @@ function RewardsRow({ rarity }: { rarity: RewardRarity }) {
         </div>
         <span className="text-[0.6rem] uppercase tracking-[0.2em]" style={{ color: info.color }}>
           {info.label}
+        </span>
+        <span className="text-[0.55rem] uppercase tracking-[0.15em] text-neon-dim">
+          +{info.rainbowBalls.toLocaleString()} balls
         </span>
       </div>
     </div>

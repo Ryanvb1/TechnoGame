@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { addRainbowBalls, rollRainbowBallDrop } from "./rainbowBalls";
 import { RainbowBallPile } from "./RainbowBallPile";
+import { useSoundEffects } from "./MusicProvider";
 
 type CrateState = "idle" | "opening" | "spinning" | "opened";
 
@@ -16,9 +17,11 @@ export function CrateOpener() {
   const [state, setState] = useState<CrateState>("idle");
   const [drop, setDrop] = useState(0);
   const [total, setTotal] = useState(0);
+  const playSound = useSoundEffects();
 
   function handleOpen() {
     if (state !== "idle") return;
+    playSound("chest");
     setState("opening");
     setTimeout(() => {
       setState("spinning");
@@ -27,6 +30,7 @@ export function CrateOpener() {
         setDrop(amount);
         setTotal(addRainbowBalls(amount));
         setState("opened");
+        playSound("reward");
       }, SPIN_MS);
     }, LID_OPEN_MS);
   }
@@ -37,6 +41,7 @@ export function CrateOpener() {
     <div className="flex flex-col items-center gap-14">
       <button
         onClick={handleOpen}
+        data-sfx="none"
         disabled={state !== "idle"}
         aria-label="Open today's crate"
         className="group relative flex h-[230px] w-[220px] touch-manipulation flex-col items-center justify-end outline-none disabled:cursor-default"

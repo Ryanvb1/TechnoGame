@@ -2,14 +2,13 @@
 
 import { useState } from "react";
 import { LockOutline } from "./LockOutline";
+import { CautionTape } from "./CautionTape";
 
 const MESSAGE_MS = 2200;
 
-// A shimmering ring of water tucked in the top-left corner of the hub —
-// unlike Cave/Airport (locked behind the vending machine, see siteAccess.ts)
-// there's nothing built behind this one yet, so it's permanently locked for
-// now: clicking it just surfaces the same "Locked" tooltip those two use
-// while they're still unpurchased.
+// A shimmering ring of water tucked in the top-left corner of the hub.
+// It stays visible as a preview while clearly communicating that the
+// destination is unavailable in this version.
 export function WaterPortal() {
   const [showMessage, setShowMessage] = useState(false);
 
@@ -24,12 +23,13 @@ export function WaterPortal() {
     <div className="fixed left-6 top-16 z-20 sm:left-10 sm:top-20">
       {showMessage && (
         <div className="pointer-events-none absolute top-full left-0 mt-3 w-36 border border-neon-dim bg-background/95 px-3 py-2 text-center text-[0.6rem] uppercase tracking-[0.2em] text-foreground shadow-[0_0_15px_var(--neon-dim)]">
-          Locked
+          Under construction
         </div>
       )}
       <button
         onClick={handleClick}
-        aria-label="A locked water portal"
+        data-sfx="portal"
+        aria-label="Water portal blocked by caution tape"
         className="group relative flex touch-manipulation flex-col items-start outline-none"
       >
         <LockOutline unlocked={false} className="h-14 w-14 rounded-full p-2 opacity-50 sm:h-16 sm:w-16">
@@ -51,6 +51,7 @@ export function WaterPortal() {
             <div className="absolute inset-[18%] rounded-full border border-white/25" />
             <div className="absolute inset-[36%] rounded-full border border-white/20" />
           </div>
+          <CautionTape className="absolute left-1/2 top-1/2 z-10 w-24 -translate-x-1/2 -translate-y-1/2 rotate-6" />
         </LockOutline>
         {/* Grows downward from this box's own fixed top edge, same as the
             "Locked" tooltip above. */}

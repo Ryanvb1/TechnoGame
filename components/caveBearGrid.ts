@@ -5,11 +5,14 @@
 // "pick N of M" utility anywhere in this codebase — confirmed by grep) is
 // independently readable/testable from the timer plumbing that calls it.
 
+import { PANELS_SEQUENCE_LENGTH, ROAR_WAVE_MAX, ROAR_WAVE_MIN } from "./caveBearFightConfig";
+
 export type Row = 0 | 1;
 export type Column = 0 | 1 | 2;
 export type Quadrant = { row: Row; col: Column };
 
 export type AttackKind = "panels" | "scratch" | "roar";
+export type PrimaryAttackKind = Exclude<AttackKind, "scratch">;
 
 export const ROWS: Row[] = [0, 1];
 export const COLUMNS: Column[] = [0, 1, 2];
@@ -44,22 +47,37 @@ function shuffle<T>(items: T[]): T[] {
   return result;
 }
 
-// Roar's draw is independent of the torch by design (confirmed with the
-// user) — it can include the currently-lit column. Leaves exactly one
-// random quadrant safe from the falling rocks each time.
-export function pickRandomFiveOfSix(): Quadrant[] {
-  return shuffle(ALL_QUADRANTS).slice(0, 5);
+// Roar fires 3 consecutive waves per activation, each with its own single
+// safe quadrant — this draws all of them up front and guarantees they're
+// distinct, so the player has to actually move between waves rather than
+// one lucky spot staying safe the whole attack. Independent of the torch
+// by design (confirmed with the user) — can include the currently-lit
+// column.
+export function pickDistinctSafeQuadrants(count: number): Quadrant[] {
+  return shuffle(ALL_QUADRANTS).slice(0, count);
 }
 
-export function pickRandomAttackKind(): AttackKind {
-  const kinds: AttackKind[] = ["panels", "scratch", "roar"];
+export function pickRoarWaveCount(): number {
+  return ROAR_WAVE_MIN + Math.floor(Math.random() * (ROAR_WAVE_MAX - ROAR_WAVE_MIN + 1));
+}
+
+// Every quadrant except one wave's safe spot — what that wave's falling
+// rocks actually target.
+export function quadrantsExcluding(safe: Quadrant): Quadrant[] {
+  return ALL_QUADRANTS.filter((q) => !sameQuadrant(q, safe));
+}
+
+// Scratch is a guaranteed follow-up, never a standalone random attack.
+export function pickRandomAttackKind(): PrimaryAttackKind {
+  const kinds: PrimaryAttackKind[] = ["panels", "roar"];
   return kinds[Math.floor(Math.random() * kinds.length)];
 }
 
-// The Falling Panels memory sequence — every plate, once each, in a fresh
-// random order every time the attack fires.
+// The Falling Panels memory sequence — 4 of the 6 plates (not every one),
+// a fresh random subset in a fresh random order every time the attack
+// fires.
 export function pickPanelSequence(): Quadrant[] {
-  return shuffle(ALL_QUADRANTS);
+  return shuffle(ALL_QUADRANTS).slice(0, PANELS_SEQUENCE_LENGTH);
 }
 
 // A different column than the one currently lit, for the torch's rotation.

@@ -1,3 +1,5 @@
+import { CollectibleOrb } from "./CollectibleOrb";
+
 // Purely decorative HUD flourishes for the home screen — corner frame
 // brackets, a status readout, a slow-turning halo behind the hub, a
 // couple of floating shard clusters out in its open flanks, and a
@@ -56,6 +58,15 @@ export function AmbientDetails() {
       {/* floating shard clusters out in the hub's open flanks */}
       {SHARD_CLUSTERS.map((c, i) => (
         <div key={i} className="absolute" style={{ left: c.left, top: c.top }}>
+          {/* one of the gnome's hidden orbs (see gnomeProgress.ts), tucked
+              behind this cluster's biggest/nearest shard (dx:-18, dy:-14,
+              size 22) — no separate prop of its own, just DOM order
+              stacking it behind that shard below. Only in the first
+              cluster, since SHARD_CLUSTERS renders more than one and the
+              orb should only ever exist in one place. Unlike the cave
+              mound it used to sit behind, this spot never needs
+              unlocking. */}
+          {i === 0 && <CollectibleOrb id="hub" style={{ left: -15, top: -8 }} />}
           {SHARDS.map((s, j) => (
             <div
               key={j}

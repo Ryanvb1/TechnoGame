@@ -5,9 +5,11 @@ import {
   containsQuadrant,
   otherColumns,
   pickDifferentColumn,
+  pickDistinctSafeQuadrants,
   pickPanelSequence,
   pickRandomAttackKind,
-  pickRandomFiveOfSix,
+  pickRoarWaveCount,
+  quadrantsExcluding,
   quadrantsInColumns,
   sameQuadrant,
   type Column,
@@ -25,9 +27,9 @@ import {
   ROAR_RESOLVE_FLASH_MS,
   ROAR_TELEGRAPH_MS,
   SCRATCH_DAMAGE,
+  SCRATCH_FOLLOWUP_DELAY_MS,
   SCRATCH_STRIKE_COUNT,
   SCRATCH_STRIKE_INTERVAL_MS,
-  TORCH_SWITCH_INTERVAL_MS,
 } from "./caveBearFightConfig";
 
 // Falling Panels doesn't fit the plain telegraph/resolve shape the other
@@ -40,12 +42,23 @@ export type ActiveAttack =
       kind: "scratch";
       stage: "resolve";
       targetQuadrants: Quadrant[];
-      // Which of the 3 rapid strikes this is (0-indexed) — lets the
+      // Which strike within the combo this is (0-indexed) — lets the
       // renderer key the flash/claw-mark visuals per strike so each one
       // replays instead of the CSS animation staying stuck on strike 0.
+      // Always 0 now that Scratch is back to a single strike, but the
+      // field stays since the renderer already keys off it generically.
       strike: number;
     }
-  | { kind: "roar"; stage: "telegraph" | "resolve"; targetQuadrants: Quadrant[] }
+  | {
+      kind: "roar";
+      stage: "telegraph" | "resolve";
+      targetQuadrants: Quadrant[];
+      // Which wave this is (0-indexed) — lets the renderer key
+      // each wave's falling rocks so a quadrant that's targeted again in a
+      // later wave still gets a fresh mount and replays its fall, instead
+      // of silently reusing the previous wave's already-landed one.
+      wave: number;
+    }
   | {
       kind: "panels";
       stage: "reveal";
@@ -66,18 +79,14 @@ export type ActiveAttack =
     }
   | null;
 
-// Runs the Survival Phase's 3-attack sequence (each independently random,
-// repeats allowed) with a 4s gap between attacks, plus the torch's own 8s
-// rotation clock — kept in one effect (rather than split across several)
-// specifically so the torch's "never switch mid-Scratch, then switch right
-// after and reset the clock" rule can share state with the attack loop
-// without cross-effect ref plumbing. Shaped after ThroneRoomScene's single
-// targetColor effect: one cancelled flag, a pile of timer handles, full
-// cleanup.
+// Runs the Survival Phase's 3-primary-attack sequence (Panels or Roar,
+// repeats allowed), each followed 0.6s later by one Scratch, with a 4s gap
+// between those combined attack pairs. The torch changes only after the
+// Scratch resolves, so its safe-column signal stays stable until used.
 export function useCaveBearSurvivalPhase({
   active,
   playerQuadrantRef,
-  // How long to wait before the first attack (and the torch clock) starts
+  // How long to wait before the first attack starts
   // once this phase activates — 0 for the fight's very first Survival
   // Phase, POST_DAMAGE_PHASE_COOLDOWN_MS every other time, since every
   // later activation is necessarily a hand-back from the Damage Phase (see
@@ -102,25 +111,11 @@ export function useCaveBearSurvivalPhase({
     let cancelled = false;
     let attackTimer: number | undefined;
     let interAttackTimer: number | undefined;
-    let torchTimer: number | undefined;
-    let scratchInProgress = false;
 
     function advanceTorch() {
       const next = pickDifferentColumn(litColumnRef.current);
       litColumnRef.current = next;
       setLitColumn(next);
-    }
-
-    // Re-armed every time it fires (or deferred past a live Scratch, which
-    // instead re-arms it itself once that Scratch resolves) so exactly one
-    // clock is ever running.
-    function scheduleTorchSwitch() {
-      torchTimer = window.setTimeout(() => {
-        if (cancelled) return;
-        if (scratchInProgress) return; // Scratch's own resolve will switch + reschedule
-        advanceTorch();
-        scheduleTorchSwitch();
-      }, TORCH_SWITCH_INTERVAL_MS);
     }
 
     function afterResolve(n: number) {
@@ -164,11 +159,14 @@ export function useCaveBearSurvivalPhase({
           const standingOn = playerQuadrantRef.current;
           const correct = sameQuadrant(standingOn, sequence[index]);
           setActiveAttack({ kind: "panels", stage: "recite", sequence, checkQuadrant: standingOn, checkResult: correct ? "correct" : "wrong" });
-          if (!correct) onDamage(PANELS_DAMAGE);
           attackTimer = window.setTimeout(() => {
             if (cancelled) return;
+            // Let the plate crumble and the snail visibly fall before the
+            // health loss lands. This keeps the gameplay result synchronized
+            // with the animation instead of the bar dropping early.
+            if (!correct) onDamage(PANELS_DAMAGE);
             if (!correct || index + 1 >= sequence.length) {
-              afterResolve(n);
+              scheduleScratch(n);
             } else {
               checkStep(index + 1);
             }
@@ -181,15 +179,10 @@ export function useCaveBearSurvivalPhase({
 
     function runScratch(n: number) {
       // Not telegraphed, per spec — the player must already be in the lit
-      // column when each strike resolves. Targets stay fixed on the same
-      // two non-lit columns for the whole combo (the torch doesn't move
-      // mid-Scratch). One Scratch instance is 3 rapid strikes, 0.8s apart,
-      // each independently checking the player's position — so a player
-      // who dodges into the lit column partway through only eats the
-      // strikes that already landed before they got there.
+      // column when the strike resolves. Targets the two non-lit columns.
+      // Reverted back to a single strike (the 3-rapid-strikes combo didn't
+      // stick) — one check against the player's position, once.
       const targets = quadrantsInColumns(otherColumns(litColumnRef.current));
-      scratchInProgress = true;
-
       function strike(strikeIndex: number) {
         setActiveAttack({ kind: "scratch", stage: "resolve", targetQuadrants: targets, strike: strikeIndex });
         if (containsQuadrant(targets, playerQuadrantRef.current)) onDamage(SCRATCH_DAMAGE);
@@ -199,11 +192,8 @@ export function useCaveBearSurvivalPhase({
             strike(strikeIndex + 1);
             return;
           }
-          scratchInProgress = false;
-          // Every Scratch combo rotates the torch once the whole thing
-          // resolves and resets the 8s clock from that point, per spec.
+          // The torch changes exactly once, after Scratch fully resolves.
           advanceTorch();
-          scheduleTorchSwitch();
           afterResolve(n);
         }, SCRATCH_STRIKE_INTERVAL_MS);
       }
@@ -211,21 +201,38 @@ export function useCaveBearSurvivalPhase({
       strike(0);
     }
 
-    function runRoar(n: number) {
-      // Independent random 5-of-6 draw every time — leaves exactly one
-      // random tile safe, and can include the lit column (torch protection
-      // is scoped to Scratch only, per the user).
-      const targets = pickRandomFiveOfSix();
-      setActiveAttack({ kind: "roar", stage: "telegraph", targetQuadrants: targets });
+    function scheduleScratch(n: number) {
+      setActiveAttack(null);
       attackTimer = window.setTimeout(() => {
-        if (cancelled) return;
-        setActiveAttack({ kind: "roar", stage: "resolve", targetQuadrants: targets });
-        if (containsQuadrant(targets, playerQuadrantRef.current)) onDamage(ROAR_DAMAGE);
+        if (!cancelled) runScratch(n);
+      }, SCRATCH_FOLLOWUP_DELAY_MS);
+    }
+
+    function runRoar(n: number) {
+      // Every Roar independently rolls 2–4 consecutive waves. Their safe
+      // quadrants are drawn up front and guaranteed distinct.
+      const waveCount = pickRoarWaveCount();
+      const safeQuadrants = pickDistinctSafeQuadrants(waveCount);
+
+      function wave(waveIndex: number) {
+        const targets = quadrantsExcluding(safeQuadrants[waveIndex]);
+        setActiveAttack({ kind: "roar", stage: "telegraph", targetQuadrants: targets, wave: waveIndex });
         attackTimer = window.setTimeout(() => {
           if (cancelled) return;
-          afterResolve(n);
-        }, ROAR_RESOLVE_FLASH_MS);
-      }, ROAR_TELEGRAPH_MS);
+          setActiveAttack({ kind: "roar", stage: "resolve", targetQuadrants: targets, wave: waveIndex });
+          if (containsQuadrant(targets, playerQuadrantRef.current)) onDamage(ROAR_DAMAGE);
+          attackTimer = window.setTimeout(() => {
+            if (cancelled) return;
+            if (waveIndex + 1 < waveCount) {
+              wave(waveIndex + 1);
+            } else {
+              scheduleScratch(n);
+            }
+          }, ROAR_RESOLVE_FLASH_MS);
+        }, ROAR_TELEGRAPH_MS);
+      }
+
+      wave(0);
     }
 
     function runAttack(n: number) {
@@ -236,9 +243,6 @@ export function useCaveBearSurvivalPhase({
       switch (pickRandomAttackKind()) {
         case "panels":
           runPanels(n);
-          break;
-        case "scratch":
-          runScratch(n);
           break;
         case "roar":
           runRoar(n);
@@ -256,7 +260,6 @@ export function useCaveBearSurvivalPhase({
     const startTimer = window.setTimeout(() => {
       if (cancelled) return;
       runAttack(1);
-      scheduleTorchSwitch();
     }, startDelayMs);
 
     return () => {
@@ -264,7 +267,6 @@ export function useCaveBearSurvivalPhase({
       window.clearTimeout(startTimer);
       window.clearTimeout(attackTimer);
       window.clearTimeout(interAttackTimer);
-      window.clearTimeout(torchTimer);
       setActiveAttack(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- onDamage/onComplete/refs are stable identities from the owning component, and startDelayMs only needs to be read once at the instant this effect starts (the render that flips `active` true always carries the right value, per CaveBearFight's cameFromDamagePhaseRef); re-running this effect on every render would restart the whole attack sequence.

@@ -1,4 +1,5 @@
 export const RAINBOW_BALLS_KEY = "techno-rainbow-balls";
+export const RAINBOW_BALLS_CHANGED_EVENT = "techno-rainbow-balls-changed";
 export const MIN_DROP = 200;
 export const MAX_DROP = 500;
 
@@ -18,6 +19,7 @@ export function rollRainbowBallDrop(): number {
 export function addRainbowBalls(amount: number): number {
   const next = readRainbowBalls() + amount;
   window.localStorage.setItem(RAINBOW_BALLS_KEY, String(next));
+  window.dispatchEvent(new Event(RAINBOW_BALLS_CHANGED_EVENT));
   return next;
 }
 
@@ -27,5 +29,6 @@ export function spendRainbowBalls(amount: number): boolean {
   const current = readRainbowBalls();
   if (current < amount) return false;
   window.localStorage.setItem(RAINBOW_BALLS_KEY, String(current - amount));
+  window.dispatchEvent(new Event(RAINBOW_BALLS_CHANGED_EVENT));
   return true;
 }

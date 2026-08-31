@@ -192,18 +192,6 @@ export function Gnome() {
             {stage === "menu" && (
               <div className="flex flex-col gap-2">
                 <button
-                  onClick={() => setStage("mission")}
-                  className="touch-manipulation uppercase tracking-[0.2em] text-neon transition-colors hover:text-white"
-                >
-                  Mission
-                </button>
-                <button
-                  onClick={() => setStage("asking")}
-                  className="touch-manipulation uppercase tracking-[0.2em] text-neon transition-colors hover:text-white"
-                >
-                  Check In
-                </button>
-                <button
                   onClick={handleOpenCollectOrbs}
                   className="touch-manipulation uppercase tracking-[0.2em] text-neon transition-colors hover:text-white"
                 >
@@ -271,9 +259,9 @@ export function Gnome() {
         {stage === "collectOrbs" && (
           <BossFightStartMenu
             title="Collect Orbs"
-            concept="medium"
+            concept="easy"
             gameplay="easy"
-            rewardRarity="uncommon"
+            rewardRarity="common"
             beginLabel="Got It"
             description={
               <div className="flex flex-col items-center gap-3">
@@ -285,7 +273,7 @@ export function Gnome() {
                     boxShadow: "0 0 10px rgba(56,189,248,0.8), 0 0 20px rgba(56,189,248,0.5)",
                   }}
                 />
-                <p>&quot;Find me these and I will grant you opportunity.&quot;</p>
+                <p>&quot;Find these orbs scattered around the map.&quot;</p>
               </div>
             }
             // Unlike the others, backing out doesn't undo anything — the
@@ -306,7 +294,7 @@ export function Gnome() {
         )}
 
         {stage === "orbVictory" && (
-          <VictoryScreen title="Orbs Collected" rewardRarity="uncommon" onClose={() => setStage("idle")} />
+          <VictoryScreen title="Orbs Collected" rewardRarity="common" onClose={() => setStage("idle")} />
         )}
 
         {/* ambient presence glow */}

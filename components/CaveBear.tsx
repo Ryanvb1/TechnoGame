@@ -246,7 +246,6 @@ function StandingPose({
   scratchStrike: number;
 }) {
   const eyeColor = enraged ? "#ff3b3b" : "#ffcf6b";
-  const roaring = action === "roar-telegraph" || action === "roar-resolve";
   const mouthScale = action === "roar-telegraph" ? 1.3 : action === "roar-resolve" ? 1.85 : 1;
   // He takes a real moment to open his mouth — the telegraph widens it
   // gradually across almost the whole telegraph window (a deliberate,
@@ -277,7 +276,6 @@ function StandingPose({
           own static lean + fur texture untouched by whichever of those is
           active */}
       <div
-        key={action === "scratch" ? `scratch-${scratchStrike}` : action}
         className="absolute bottom-[24%] left-1/2 h-[62%] w-[62%] -translate-x-1/2"
         style={{
           animation: BODY_POSE_ANIMATION[action],
@@ -298,20 +296,14 @@ function StandingPose({
           ))}
         </div>
 
-        {/* raised arm, claws fanned — the static threat pose outside
-            combat's active swings; during a Scratch it claws too (both
-            arms rake at once, not just one), and during a Roar both arms
-            throw up overhead for a real "rearing up to roar" silhouette */}
-        <Arm side="left" pose={action === "scratch" ? "swipe" : "raised"} />
-        {/* the other arm mirrors the same swipe during a Scratch — together
-            they read as a real double-claw rake across the floor, biased
-            by scratchLean toward whichever side is actually getting hit;
-            during a Roar it throws up overhead alongside the other arm;
-            otherwise it sits in its normal lowered pose */}
-        <Arm side="right" pose={action === "scratch" ? "swipe" : roaring ? "raised" : "lowered"} />
+        <BearArms
+          scratching={action === "scratch"}
+          direction={scratchLean}
+          scratchStrike={scratchStrike}
+        />
 
         {/* head atop the torso */}
-        <div className="absolute left-1/2 top-0 h-[38%] w-[42%] -translate-x-1/2" style={{ clipPath: "circle(50% at 50% 45%)", background: FUR }}>
+        <div className="absolute left-1/2 top-0 z-30 h-[38%] w-[42%] -translate-x-1/2" style={{ clipPath: "circle(50% at 50% 45%)", background: FUR }}>
           {/* ears */}
           <div className="absolute -top-[8%] left-[6%] h-[26%] w-[26%]" style={{ clipPath: "circle(50% at 50% 50%)", background: FUR_DARK }} />
           <div className="absolute -top-[8%] right-[6%] h-[26%] w-[26%]" style={{ clipPath: "circle(50% at 50% 50%)", background: FUR_DARK }} />
@@ -343,38 +335,166 @@ function StandingPose({
   );
 }
 
-// One raised (claws fanned overhead, threatening), lowered/forward, or
-// mid-swipe arm — shared shape, mirrored by side. Split into an outer
-// wrapper (position + mirroring, always static) and an inner one (just the
-// rotation) specifically so the swipe's keyframe — which sets `transform`
-// outright each frame — only ever overrides the rotation, never clobbering
-// the outer translateX/scaleX(mirror) it would otherwise replace wholesale.
-function Arm({ side, pose }: { side: "left" | "right"; pose: "raised" | "lowered" | "swipe" }) {
-  const mirror = side === "left" ? 1 : -1;
-  const staticRotation = pose === "raised" ? -55 : 10;
+// The scratch's articulated arms remain mounted in every pose. Outside the
+// attack they settle lower and smaller, then their outer wrapper eases to
+// full size while the unchanged scratch keyframes animate the joints.
+function BearArms({
+  scratching,
+  direction,
+  scratchStrike,
+}: {
+  scratching: boolean;
+  direction: ScratchLean;
+  scratchStrike: number;
+}) {
+  return (
+    <div className="pointer-events-none absolute -inset-x-[70%] -bottom-[125%] top-[4%] z-20">
+      {(["left", "right"] as const).map((side) => {
+        const active = scratching && (direction === "center" || direction === side);
+        return (
+          <ArticulatedClawArm
+            key={active && scratchStrike > 0 ? `${side}-${scratchStrike}` : side}
+            side={side}
+            active={active}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function ArticulatedClawArm({ side, active }: { side: "left" | "right"; active: boolean }) {
+  const mirror = side === "left";
+  const suffix = side;
+  const socketOffsetX = side === "left" ? -88 : 88;
   return (
     <div
-      className="absolute left-1/2 top-[30%] h-[16%] w-[38%] origin-left"
-      style={{ transform: `translateX(${-6 * mirror}%) scaleX(${mirror})` }}
+      className="absolute inset-0"
+      style={{
+        transform: active
+          ? `translate(${socketOffsetX}px, 0) scale(1)`
+          : `translate(${socketOffsetX}px, 34px) scale(0.68)`,
+        transformOrigin: "50% 20%",
+        transition: "transform 240ms cubic-bezier(0.2, 0.8, 0.25, 1)",
+      }}
     >
-      <div
-        className="h-full w-full origin-left"
+      <svg
+        className="absolute inset-0 h-full w-full overflow-visible"
+        viewBox="0 0 600 390"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+        style={{ transform: mirror ? "scaleX(-1)" : undefined }}
+      >
+      <defs>
+        <linearGradient id={`claw-fur-${suffix}`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#8b704e" />
+          <stop offset="34%" stopColor="#634a31" />
+          <stop offset="72%" stopColor="#3a291b" />
+          <stop offset="100%" stopColor="#21150d" />
+        </linearGradient>
+        <radialGradient id={`claw-paw-${suffix}`} cx="38%" cy="28%" r="75%">
+          <stop offset="0%" stopColor="#947759" />
+          <stop offset="55%" stopColor="#5a422d" />
+          <stop offset="100%" stopColor="#24170f" />
+        </radialGradient>
+        <linearGradient id={`claw-nail-${suffix}`} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#8e7b67" />
+          <stop offset="45%" stopColor="#eee7d9" />
+          <stop offset="100%" stopColor="#fffdf4" />
+        </linearGradient>
+        <filter id={`claw-shadow-${suffix}`} x="-30%" y="-30%" width="180%" height="180%">
+          <feDropShadow dx="5" dy="8" stdDeviation="7" floodColor="#090503" floodOpacity="0.72" />
+        </filter>
+      </defs>
+
+      <g
         style={{
-          transform: pose === "swipe" ? undefined : `rotate(${staticRotation}deg)`,
-          animation: pose === "swipe" ? `bear-scratch-swipe ${SCRATCH_RESOLVE_FLASH_MS}ms ease-out both` : undefined,
-          transition: pose === "swipe" ? undefined : "transform 500ms ease-out",
-          background: FUR_DARK,
-          clipPath: "polygon(0% 20%, 90% 0%, 100% 30%, 92% 55%, 100% 80%, 88% 100%, 0% 60%)",
+          transformBox: "view-box",
+          transformOrigin: "50.3% 20%",
+          transform: "translate(-22px, -34px) rotate(-28deg)",
+          transition: `transform ${Math.round(SCRATCH_RESOLVE_FLASH_MS * 0.35)}ms ease-out`,
+          animation: active
+            ? `bear-claw-lunge-${side} ${SCRATCH_RESOLVE_FLASH_MS}ms cubic-bezier(0.16, 0.78, 0.24, 1) both`
+            : undefined,
         }}
       >
-        {[0, 1, 2].map((i) => (
-          <div
-            key={i}
-            className="absolute right-0 h-[3px] w-[13px] bg-[#1c130c]"
-            style={{ top: `${18 + i * 28}%`, clipPath: "polygon(0% 50%, 100% 0%, 100% 100%)" }}
-          />
-        ))}
-      </div>
+        {/* Upper arm: heavy shoulder mass tapering into a visible elbow. */}
+        <path d="M302 78 C344 82 377 109 410 159" fill="none" stroke="#160d08" strokeWidth="70" strokeLinecap="round" filter={`url(#claw-shadow-${suffix})`} />
+        <path d="M302 78 C344 82 377 109 410 159" fill="none" stroke={`url(#claw-fur-${suffix})`} strokeWidth="61" strokeLinecap="round" />
+        <path d="M292 64 C334 70 363 94 394 137" fill="none" stroke="rgba(226,188,132,0.2)" strokeWidth="9" strokeLinecap="round" />
+        <ellipse cx="410" cy="159" rx="37" ry="34" fill="#493421" transform="rotate(24 410 159)" />
+
+        {/* Forearm bends independently at the elbow before driving the paw
+            down through the unsafe columns. */}
+        <g
+          style={{
+            transformBox: "view-box",
+            transformOrigin: "68.3% 40.8%",
+            transform: "rotate(-22deg)",
+            transition: `transform ${Math.round(SCRATCH_RESOLVE_FLASH_MS * 0.35)}ms ease-out`,
+            animation: active
+              ? `bear-claw-forearm ${SCRATCH_RESOLVE_FLASH_MS}ms cubic-bezier(0.2, 0.85, 0.25, 1) both`
+              : undefined,
+          }}
+        >
+          <path d="M410 159 C440 199 474 234 519 269" fill="none" stroke="#160d08" strokeWidth="62" strokeLinecap="round" filter={`url(#claw-shadow-${suffix})`} />
+          <path d="M410 159 C440 199 474 234 519 269" fill="none" stroke={`url(#claw-fur-${suffix})`} strokeWidth="54" strokeLinecap="round" />
+          <path d="M406 146 C438 184 469 214 506 245" fill="none" stroke="rgba(232,198,151,0.18)" strokeWidth="8" strokeLinecap="round" />
+
+          <g
+            style={{
+              transformBox: "view-box",
+              transformOrigin: "86.7% 69.2%",
+              transform: "rotate(-18deg) scale(0.94)",
+              transition: `transform ${Math.round(SCRATCH_RESOLVE_FLASH_MS * 0.35)}ms ease-out`,
+              animation: active ? `bear-claw-paw ${SCRATCH_RESOLVE_FLASH_MS}ms ease-out both` : undefined,
+            }}
+          >
+            <path
+              d="M489 244 C516 227 552 231 574 252 C590 268 588 298 565 310 C538 324 499 310 482 285 C473 271 477 253 489 244 Z"
+              fill={`url(#claw-paw-${suffix})`}
+              stroke="#1d120c"
+              strokeWidth="5"
+              filter={`url(#claw-shadow-${suffix})`}
+            />
+            <path d="M500 250 C523 240 548 244 564 257" fill="none" stroke="rgba(240,204,155,0.2)" strokeWidth="7" strokeLinecap="round" />
+            {[0, 1, 2, 3].map((i) => {
+              const y = 250 + i * 17;
+              return (
+                <g key={i}>
+                  <ellipse cx={565 + i * 2} cy={y + 5} rx="12" ry="9" fill="#352218" />
+                  <path
+                    d={`M${568 + i * 2} ${y} C${589 + i * 3} ${y - 7}, ${608 + i * 3} ${y - 2}, ${621 + i * 4} ${y + 7} C${604 + i * 2} ${y + 5}, ${589 + i * 2} ${y + 10}, ${573 + i * 2} ${y + 13} Z`}
+                    fill={`url(#claw-nail-${suffix})`}
+                    stroke="#4a4037"
+                    strokeWidth="1.5"
+                  />
+                </g>
+              );
+            })}
+          </g>
+        </g>
+      </g>
+
+      {/* Contact streaks belong to the moving paw, not the floor tiles. */}
+      {[0, 1, 2, 3].map((i) => (
+        <path
+          key={i}
+          d={`M${505 + i * 9} ${305 + i * 9} Q${545 + i * 8} ${326 + i * 7} ${590 + i * 5} ${336 + i * 6}`}
+          fill="none"
+          stroke={i % 2 === 0 ? "#ffe8b0" : "#ff7847"}
+          strokeWidth={i % 2 === 0 ? 4 : 3}
+          strokeLinecap="round"
+          style={{
+            filter: "drop-shadow(0 0 5px rgba(255,110,60,0.85))",
+            opacity: 0,
+            animation: active
+              ? `bear-claw-contact ${SCRATCH_RESOLVE_FLASH_MS}ms ease-out ${i * 24}ms both`
+              : undefined,
+          }}
+        />
+      ))}
+      </svg>
     </div>
   );
 }

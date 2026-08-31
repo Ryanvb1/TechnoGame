@@ -1,7 +1,5 @@
 import type { Ref } from "react";
 import { ToadBoss } from "./ToadBoss";
-import { ScaredSnail } from "./ScaredSnail";
-import { ThoughtBubble } from "./ThoughtBubble";
 import { BEAM_TRAVEL_MS, PILLAR_COLORS, REFLECT_TRAVEL_MS } from "./pillarColors";
 
 export type PillarStatus = "pending" | "targeted" | "burning" | "saved" | "burned";
@@ -58,13 +56,6 @@ const STAR_CLIP_PATH =
 // space to reconcile: 70 + (24 + 9/2) * 0.26 ≈ 77.4% from the bottom.
 const TOAD_MOUTH_X_PCT = 50;
 const TOAD_MOUTH_Y_PCT = 100 - 77.4;
-
-// The snail's resting spot when he isn't off tending a pillar — dead
-// center of the open floor, in the same top/left-percentage terms as
-// pillarBaseXY below (see pillarBaseXY for why that frame is safe to
-// share with the pillar container despite the two elements having
-// different parents).
-const SNAIL_HOME = { x: 50, y: 96 };
 
 // Where a given pillar's base sits, in percentages relative to the pillar
 // row container (top:0/bottom:0, width: HALL_WIDTH, centered — see the
@@ -156,11 +147,6 @@ export function ThroneHallBackground({
   pillarStates,
   slimeActive,
   onPillarClick,
-  snailRevealed = false,
-  snailBubble = false,
-  snailPos = null,
-  snailRef,
-  snailTravelMs,
   beamShot,
   reflectShot,
 }: {
@@ -185,24 +171,8 @@ export function ThroneHallBackground({
   // Whether each pillar currently has an active slime puddle at its base
   // (same indexing as pillarStates).
   slimeActive?: boolean[];
-  // Passes along the clicked pillar's real on-screen base position (its
-  // own container's getBoundingClientRect, bottom-center) so the caller
-  // can measure how far the snail actually has to crawl.
-  onPillarClick?: (position: number, basePoint: { x: number; y: number }) => void;
-  // The ally snail's entrance — once true he's a permanent fixture of the
-  // scene (never vanishes), just relocated by snailPos.
-  snailRevealed?: boolean;
-  snailBubble?: boolean;
-  // Which pillar the snail is currently at/heading to; null means home,
-  // dead-center of the floor.
-  snailPos?: number | null;
-  // Exposes the snail's real DOM position so ThroneRoomScene can measure
-  // the distance to a clicked pillar (see onPillarClick above).
-  snailRef?: Ref<HTMLDivElement>;
-  // How long the current crawl should take — measured by ThroneRoomScene
-  // from real on-screen distance, so this drives both the CSS transition
-  // here and the timer that decides when he's "arrived" there.
-  snailTravelMs?: number;
+  // Enables an E-only interaction zone at each eligible pillar base.
+  onPillarClick?: (position: number) => void;
   // A one-shot burst of fire from the toad's mouth to a pillar's base —
   // present only for the brief window it takes to travel there.
   beamShot?: BeamShot | null;
@@ -291,6 +261,7 @@ export function ThroneHallBackground({
         }}
       >
         <div
+          data-snail-boundary
           className="relative h-full w-full"
           style={{ transformStyle: "preserve-3d", transform: "rotateX(58deg)" }}
         >
@@ -338,10 +309,6 @@ export function ThroneHallBackground({
 
         {/* the snail — lives here (rather than at the fixed root) so his
             home spot and pillar destinations share one coordinate frame */}
-        {snailRevealed && (
-          <SnailAgent pos={snailPos} bubble={snailBubble} snailRef={snailRef} travelMs={snailTravelMs} />
-        )}
-
         {/* the toad's fire, shooting from his mouth to whichever pillar
             he's currently torching — a brief one-shot burst, not a
             continuous stream, so it reads as a single strike */}
@@ -377,7 +344,7 @@ function Pillar({
   colorsChanged?: boolean;
   fightState?: PillarFightState;
   slimed?: boolean;
-  onClick?: (position: number, basePoint: { x: number; y: number }) => void;
+  onClick?: (position: number) => void;
 }) {
   const sideStyle = side === "left" ? { left: `${row.xPct}%` } : { right: `${row.xPct}%` };
   const status = fightState?.status ?? "pending";
@@ -388,10 +355,8 @@ function Pillar({
   // graphic at the base.
   const inDanger = status === "targeted" || status === "burning";
   const onFire = status === "burning";
-  // Any pillar that hasn't already resolved can be sent the snail —
-  // including ones the toad hasn't targeted yet, so a pillar can be
-  // pre-slimed in anticipation.
-  const clickable = !!color && !!onClick && !burned && !saved;
+  // Any unresolved pillar can be slimed once the player reaches its base.
+  const interactable = !!color && !!onClick && !burned && !saved;
 
   return (
     <div
@@ -437,6 +402,7 @@ function Pillar({
           both until the next check resolves it */}
       {slimed && (
         <div
+          data-pillar-slime={position}
           className="absolute bottom-0 left-1/2 -translate-x-1/2 animate-[slime-pulse_1.4s_ease-in-out_infinite]"
           style={{
             width: row.width * 1.7,
@@ -495,33 +461,22 @@ function Pillar({
         </div>
       )}
 
-      {/* the colored circle assigned once the knight's defeated — click
-          it to send the snail over to slime this pillar's base */}
-      {color && (
+      {/* This real base interaction runs the same callback for both a
+          pointer click and the roaming snail's nearby E interaction. */}
+      {interactable && (
         <button
-          onClick={
-            clickable
-              ? (e) => {
-                  // The button's own parent is this pillar's root box,
-                  // spanning ceiling to floor at this row's depth — its
-                  // bottom-center is exactly where the snail actually
-                  // needs to crawl to, not the (much higher) circle being
-                  // clicked here.
-                  const pillarBox = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect();
-                  onClick!(position, { x: pillarBox.left + pillarBox.width / 2, y: pillarBox.bottom });
-                }
-              : undefined
-          }
-          disabled={!clickable}
-          aria-label="Send the snail to slime this pillar"
-          className={`absolute left-1/2 -translate-x-1/2 outline-none ${
-            // The root background layer this button lives inside is
-            // pointer-events-none (so it never blocks clicks on foreground
-            // UI elsewhere on the page) — has to be explicitly opted back
-            // in here, or a real pointer click can never reach the button
-            // at all, only find nothing underneath it.
-            clickable ? "pointer-events-auto touch-manipulation cursor-pointer" : "pointer-events-none"
-          }`}
+          data-snail-e-only
+          onClick={() => onClick?.(position)}
+          aria-label="Place slime at this pillar base"
+          className="pointer-events-auto absolute bottom-0 left-1/2 h-20 -translate-x-1/2 cursor-pointer outline-none"
+          style={{ width: Math.max(90, row.width * 1.8) }}
+        />
+      )}
+
+      {color && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute left-1/2 -translate-x-1/2"
           style={{ top: "13%", width: row.width * 0.55, height: row.width * 0.55 }}
         >
           {/* a plain (non-clip-path'd) wrapper carrying the white outline
@@ -532,13 +487,7 @@ function Pillar({
           <div
             className="absolute inset-0"
             style={{
-              // Same white outline Molotov uses to flag itself as "the
-              // thing to click" — on for as long as this star can actually
-              // be clicked, on top of (not instead of) its own color glow
-              // below.
-              filter: clickable
-                ? "drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 4px rgba(255,255,255,0.85))"
-                : "none",
+              filter: "none",
               animation: colorsChanged ? "pillar-color-pop 900ms ease-out" : undefined,
             }}
           >
@@ -568,53 +517,8 @@ function Pillar({
               />
             )}
           </div>
-        </button>
+        </div>
       )}
-    </div>
-  );
-}
-
-// The ally snail — a single roaming agent rather than a per-pillar sprite,
-// since he can only be in one place at a time. Positioned in the same
-// top/left-percentage frame pillarBaseXY uses (see its comment), with a
-// plain CSS transition standing in for the crawl — its duration is
-// whatever ThroneRoomScene measured the real distance to be (travelMs),
-// so the visual motion always matches the timer deciding when he's
-// "arrived" and the slime actually gets laid.
-function SnailAgent({
-  pos,
-  bubble,
-  snailRef,
-  travelMs,
-}: {
-  pos: number | null;
-  bubble: boolean;
-  snailRef?: Ref<HTMLDivElement>;
-  travelMs?: number;
-}) {
-  const { x, y } = pos === null ? SNAIL_HOME : pillarBaseXY(pos);
-  // Nudged a little off-center from the pillar's base so he sits beside
-  // the slime puddle/flame rather than directly under them.
-  const nudge = pos === null ? 0 : x < 50 ? -4 : 4;
-  const facingLeft = x + nudge < 50;
-
-  return (
-    <div
-      ref={snailRef}
-      className="absolute -translate-x-1/2 -translate-y-full transition-[left,top] ease-in-out"
-      style={{ left: `${x + nudge}%`, top: `${y}%`, transitionDuration: `${travelMs ?? 900}ms` }}
-    >
-      {/* the bubble stays upright regardless of which way he's facing —
-          only the snail sprite itself mirrors, so the text never reads
-          backwards */}
-      {bubble && (
-        <ThoughtBubble className="absolute bottom-full left-1/2 mb-2 w-36 -translate-x-1/2">
-          <p className="font-bold">Let&apos;s get him.</p>
-        </ThoughtBubble>
-      )}
-      <div style={{ transform: `scaleX(${facingLeft ? -1 : 1})` }}>
-        <ScaredSnail fear={0} />
-      </div>
     </div>
   );
 }

@@ -30,9 +30,11 @@ export function useCompanionSnailHidden() {
 
 export function useHideCompanionSnail(active: boolean) {
   const ctx = useContext(CompanionSnailContext);
+  const setHidden = ctx?.setHidden;
+
   useEffect(() => {
-    if (!ctx) return;
-    ctx.setHidden(active);
-    return () => ctx.setHidden(false);
-  }, [active, ctx]);
+    if (!setHidden) return;
+    setHidden(active);
+    return () => setHidden(false);
+  }, [active, setHidden]);
 }

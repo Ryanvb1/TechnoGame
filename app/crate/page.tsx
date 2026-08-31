@@ -6,7 +6,7 @@ import { LockedChest } from "@/components/LockedChest";
 
 export default function CratePage() {
   return (
-    <SectionShell title="Kiosk" centered backDirection="left">
+    <SectionShell title="Kiosk" centered backDirection="left" clickOnlyInteractions>
       <div className="flex flex-col items-center gap-2 sm:gap-3">
         {/* Dropped below sm — on a narrow viewport this line alone was
             enough to push the row (the part that actually matters) below

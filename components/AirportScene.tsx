@@ -5,8 +5,11 @@ import { AirportBackground } from "./AirportBackground";
 import { AirplaneTransformer, type TransformerPhase } from "./AirplaneTransformer";
 import { BossFightStartMenu } from "./BossFightStartMenu";
 import { VictoryScreen } from "./VictoryScreen";
-import { BadgeIcon } from "./BadgeIcon";
+import { NecklaceIcon } from "./NecklaceIcon";
 import { addToInventory } from "./inventory";
+import { ReplayMissionButton } from "./ReplayMissionButton";
+import { useSoundEffects } from "./MusicProvider";
+import { markTransformerDefeated, readTransformerDefeated } from "./missionState";
 
 // First prototype of this location — same shape as CaveScene: he sits
 // parked and harmless until clicked, transforms with a beat to actually
@@ -18,8 +21,15 @@ type Sequence = "parked" | "transforming" | "briefing" | "encounter" | "won";
 const TRANSFORM_TO_BRIEFING_MS = 2000;
 
 export function AirportScene() {
+  const playSound = useSoundEffects();
   const [sequence, setSequence] = useState<Sequence>("parked");
   const [showVictory, setShowVictory] = useState(false);
+  const [completed, setCompleted] = useState(false);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing persisted mission completion after hydration.
+    setCompleted(readTransformerDefeated());
+  }, []);
 
   // Re-arms the victory screen for every fresh transition into "won",
   // same pattern as CaveScene/ThroneRoomScene/FightScene.
@@ -27,6 +37,8 @@ export function AirportScene() {
     if (sequence !== "won") return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- re-arms the victory screen for this specific "won" transition, not a one-time mount default; see the identical pattern in CaveScene/ThroneRoomScene/FightScene.
     setShowVictory(true);
+    setCompleted(true);
+    markTransformerDefeated();
   }, [sequence]);
 
   // Holds on "transforming" just long enough for AirplaneTransformer's own
@@ -40,6 +52,7 @@ export function AirportScene() {
 
   function handleActivate() {
     if (sequence !== "parked") return;
+    playSound("boss-start");
     setSequence("transforming");
   }
 
@@ -57,8 +70,13 @@ export function AirportScene() {
     <>
       <AirportBackground alert={sequence !== "parked"} />
 
+      {completed && sequence === "parked" && (
+        <ReplayMissionButton label="Replay Transformer" onClick={() => setSequence("briefing")} />
+      )}
+
       <div className="relative flex flex-col items-center gap-6">
-        <button
+        {sequence !== "won" && (!completed || sequence !== "parked") && (
+          <button
           onClick={handleActivate}
           disabled={sequence !== "parked"}
           aria-label={sequence === "parked" ? "A parked airplane" : "An airplane transformer"}
@@ -75,7 +93,8 @@ export function AirportScene() {
               Approach the Airplane
             </span>
           )}
-        </button>
+          </button>
+        )}
 
         {sequence === "transforming" && (
           <p className="animate-[fire-glow-pulse_1.2s_ease-in-out_infinite] text-xs uppercase tracking-[0.3em] text-neon">
@@ -115,10 +134,13 @@ export function AirportScene() {
           <VictoryScreen
             title="The Transformer Grounded"
             rewardRarity="epic"
-            itemName="Transformer Badge"
-            itemIcon={<BadgeIcon color="#4dabf7" size={56} />}
+            itemName="Transformer Necklace"
+            itemIcon={<NecklaceIcon color="#4dabf7" size={56} />}
             onReveal={() => addToInventory("transformer-badge")}
-            onClose={() => setSequence("parked")}
+            onClose={() => {
+              setShowVictory(false);
+              setSequence("parked");
+            }}
           />
         )}
       </div>

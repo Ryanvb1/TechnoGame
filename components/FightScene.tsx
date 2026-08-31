@@ -5,10 +5,12 @@ import type { KeyboardEvent, PointerEvent } from "react";
 import Link from "next/link";
 import { KnightFigure, type SwordPhase } from "./KnightFigure";
 import { FightBackground } from "./FightBackground";
+import { useSoundEffects } from "./MusicProvider";
 import { grantKnightVictoryLoot, markKnightDefeated } from "./throneState";
 import { DefeatProgressBar } from "./DefeatProgressBar";
 import { VictoryScreen } from "./VictoryScreen";
-import { BadgeIcon } from "./BadgeIcon";
+import { NecklaceIcon } from "./NecklaceIcon";
+import { useHideCompanionSnail } from "./companionSnail";
 
 type Stage = "fighting" | "won" | "lost";
 type ShieldPhase = "idle" | "telegraph" | "active" | "lowering";
@@ -56,19 +58,21 @@ const KNIGHT_MOVE_MEAN_MS = (KNIGHT_MOVE_MIN_MS + KNIGHT_MOVE_MAX_MS) / 2;
 // already is, as opposed to a full reposition across the whole shuffle
 // zone — see pickErraticKnightTarget.
 const KNIGHT_JITTER_X = 8;
-// How long it takes him to glide to a new spot — now the *mean* of a per-
-// move erratic duration (see erraticDuration) rather than a fixed value,
-// so some shuffles are quick darts and others slow drifts. This drives a
-// JS-side tween of knightX itself (see animateKnightTo below), not a CSS
-// transition — knightX is also what hit-detection and the shield's own
-// position read, so if it jumped to its target instantly (with only the
-// *visual* left position catching up over a CSS transition, as this used
-// to work), a shield could be judged to deflect the beam the moment he was
-// still mid-shuffle toward that spot, well before he (and the shield
-// riding along with him) had actually arrived. Tweening the real value
-// makes "where he logically is" and "where he's drawn" the same number,
-// always, so a deflect can only ever be computed directly above wherever
-// he's actually rendered.
+// How long it takes him to glide to a new spot — a fixed duration again
+// (briefly the *mean* of a per-move erratic duration, but a variable glide
+// speed read as jerky/teleport-y rather than erratic; the randomness now
+// lives entirely in *when* he moves and *where* he goes — see the shuffle
+// effect below — while the glide itself always takes this long so the
+// motion reads smooth). This drives a JS-side tween of knightX itself (see
+// animateKnightTo below), not a CSS transition — knightX is also what
+// hit-detection and the shield's own position read, so if it jumped to
+// its target instantly (with only the *visual* left position catching up
+// over a CSS transition, as this used to work), a shield could be judged
+// to deflect the beam the moment he was still mid-shuffle toward that
+// spot, well before he (and the shield riding along with him) had
+// actually arrived. Tweening the real value makes "where he logically is"
+// and "where he's drawn" the same number, always, so a deflect can only
+// ever be computed directly above wherever he's actually rendered.
 const KNIGHT_MOVE_TRANSITION_MS = 800;
 const HEART_X = 10;
 const HIT_RADIUS = 10;
@@ -219,6 +223,11 @@ function pickErraticKnightTarget(currentX: number) {
 }
 
 export function FightScene() {
+  // This mission has its own fixed player marker and preset combat
+  // movement, so the room-wide free-roaming snail must not be duplicated.
+  useHideCompanionSnail(true);
+  const playSound = useSoundEffects();
+
   const [playerHealth, setPlayerHealth] = useState(MAX_HEALTH);
   const [knightHealth, setKnightHealth] = useState(MAX_HEALTH);
   const [stage, setStage] = useState<Stage>("fighting");
@@ -275,11 +284,14 @@ export function FightScene() {
   useEffect(() => {
     stageRef.current = stage;
     if (stage === "won") {
+      playSound("victory");
       markKnightDefeated();
       // eslint-disable-next-line react-hooks/set-state-in-effect -- re-arms the victory screen for this specific "won" transition (including replays via reset(), which sends stage back to "fighting" first) rather than a one-time mount default.
       setShowVictory(true);
+    } else if (stage === "lost") {
+      playSound("defeat");
     }
-  }, [stage]);
+  }, [playSound, stage]);
   useEffect(() => {
     chargePhaseRef.current = chargePhase;
   }, [chargePhase]);
@@ -348,6 +360,7 @@ export function FightScene() {
   // he's arriving at full speed, flipping directly into the strike the
   // instant he gets there rather than settling into place first.
   const beginCharge = useCallback(() => {
+    playSound("boss-roar");
     setChargePhase("windup");
     // Puts the shield away cleanly rather than leaving it visually up
     // (or mid-raise) while he charges — the two attacks don't overlap.
@@ -360,16 +373,17 @@ export function FightScene() {
         setChargePhase("striking");
       });
     }, CHARGE_WINDUP_MS);
-  }, [tweenKnightTo]);
+  }, [playSound, tweenKnightTo]);
 
   // The pressure-plate interrupt: launches him back out to his normal
   // range, fast in and settling — a real knockback, not just a fade.
   const triggerPunch = useCallback(() => {
+    playSound("punch");
     setChargePhase("punched");
     tweenKnightTo(KNIGHT_MAX_X, PUNCH_MS, (t) => 1 - Math.pow(1 - t, 3), () => {
       setChargePhase("idle");
     });
-  }, [tweenKnightTo]);
+  }, [playSound, tweenKnightTo]);
 
   // The plate-side wrapper around triggerPunch. Only ever called on a
   // fresh activation edge (the beam just arriving on the plate — see the
@@ -382,6 +396,7 @@ export function FightScene() {
   // moment he's already within GLOVE_REACH_X.
   const triggerPlatePunch = useCallback(
     (landed: boolean) => {
+      playSound("plate");
       plateCooldownRef.current = true;
       plateCooldownTimerRef.current = window.setTimeout(() => {
         plateCooldownRef.current = false;
@@ -397,7 +412,7 @@ export function FightScene() {
         }, PUNCH_MS);
       }
     },
-    [triggerPunch]
+    [playSound, triggerPunch]
   );
 
   // Keeps a fresh, out-of-range activation "live" for PLATE_ACTIVATION_BUFFER_MS
@@ -500,7 +515,8 @@ export function FightScene() {
         setShieldPhase("telegraph");
         telegraphTimer = window.setTimeout(() => {
           if (stageRef.current !== "fighting") return;
-          setShieldPhase("active");
+        setShieldPhase("active");
+          playSound("shield");
           const activeMs = erraticDuration(SHIELD_ACTIVE_MEAN_MS);
           activeTimer = window.setTimeout(() => {
             if (stageRef.current !== "fighting") return;
@@ -522,13 +538,17 @@ export function FightScene() {
       window.clearTimeout(lowerTimer);
       window.clearTimeout(cooldownTimer);
     };
-  }, [stage]);
+  }, [playSound, stage]);
 
   // The knight shuffles side to side at random, as if trying to dodge out
-  // from under the beam — erratically now rather than on a smooth random
-  // spread: see erraticDuration and pickErraticKnightTarget for how the
-  // pacing, per-move speed, and target all get the same "quick flick or
-  // long/large stretch, not something comfortably in between" treatment.
+  // from under the beam — erratic pacing and target (see erraticDuration
+  // and pickErraticKnightTarget for how *when* he moves and *where* he
+  // goes stay unpredictable: quick flick or long/large stretch, not
+  // something comfortably in between), but a smooth, fixed-speed glide
+  // between those random points (animateKnightTo with no erratic duration
+  // of its own) — variable glide speed used to make the motion itself
+  // read as jerky/teleport-y rather than erratic, so the randomness stays
+  // in the scheduling and destination only.
   useEffect(() => {
     if (stage !== "fighting") return;
     let moveTimer: number;
@@ -545,7 +565,7 @@ export function FightScene() {
           scheduleMove();
           return;
         }
-        animateKnightTo(pickErraticKnightTarget(knightXRef.current), erraticDuration(KNIGHT_MOVE_TRANSITION_MS));
+        animateKnightTo(pickErraticKnightTarget(knightXRef.current));
         scheduleMove();
       }, delay);
     }
@@ -572,12 +592,14 @@ export function FightScene() {
       const overlap = Math.abs(beamXRef.current - knightXRef.current) <= HIT_RADIUS;
       if (!overlap) return;
       if (shieldedRef.current) {
+        playSound("player-hit");
         setPlayerHealth((h) => {
           const next = Math.max(0, h - PLAYER_TICK_DAMAGE);
           if (next <= 0) setStage("lost");
           return next;
         });
       } else {
+        playSound("enemy-hit");
         setKnightHealth((h) => {
           const next = Math.max(0, h - KNIGHT_TICK_DAMAGE);
           if (next <= 0) setStage("won");
@@ -586,7 +608,7 @@ export function FightScene() {
       }
     }, TICK_MS);
     return () => window.clearInterval(id);
-  }, [stage]);
+  }, [playSound, stage]);
 
   // The charge attack's own cooldown cycle — independent of the shield's,
   // so the two can't line up predictably. Driven off chargePhase itself
@@ -629,6 +651,7 @@ export function FightScene() {
     if (chargePhase !== "striking") return;
     const impactTimer = window.setTimeout(() => {
       if (stageRef.current !== "fighting") return;
+      playSound("player-hit");
       setPlayerHealth((h) => {
         const next = Math.max(0, h - SLAM_DAMAGE);
         if (next <= 0) setStage("lost");
@@ -642,7 +665,7 @@ export function FightScene() {
       window.clearTimeout(impactTimer);
       window.clearTimeout(advanceTimer);
     };
-  }, [chargePhase]);
+  }, [chargePhase, playSound]);
 
   // Walks him back out once the hit's actually landed.
   useEffect(() => {
@@ -827,10 +850,10 @@ export function FightScene() {
           />
         )}
 
-        {/* the player, represented for now as a flat heart mounted on the
+        {/* the player is represented by an anatomical heart mounted on the
             wall rather than a standing figure */}
         <div
-          className="absolute -translate-x-1/2 -translate-y-1/2"
+          className="absolute z-10 -translate-x-1/2 -translate-y-1/2"
           style={{ left: `${HEART_X}%`, top: `${DEFLECT_Y}%` }}
         >
           <Heart hit={deflecting || chargePhase === "striking"} />
@@ -855,14 +878,15 @@ export function FightScene() {
           armed={chargePhase === "windup" || chargePhase === "charging"}
         />
 
-        {/* the boxing glove buried under the heart — invisible until the
-            plate's stepped on, then it throws a punch either way: chargePhase
-            "punched" is a swing that actually caught him, gloveWhiff is one
-            that didn't reach because he was outside GLOVE_REACH_X. Its
-            reach is passed straight through so the punch's tip always
-            travels exactly as far as the boundary line (GloveRangeZone
-            above) marks, landed or not — the whiff just throws the same
-            full-distance punch into empty air. */}
+        {/* the boxing glove rests just beyond the heart's front edge, then
+            throws a punch when the plate is stepped on: chargePhase
+            "punched" is a swing
+            that actually caught him, gloveWhiff is one that didn't reach
+            because he was outside GLOVE_REACH_X. Its reach is passed
+            straight through so the punch's tip always travels exactly as
+            far as the boundary line (GloveRangeZone above) marks, landed
+            or not — the whiff just throws the same full-distance punch
+            into empty air. */}
         <BoxingGlove
           x={HEART_X}
           y={DEFLECT_Y}
@@ -896,8 +920,8 @@ export function FightScene() {
         <VictoryScreen
           title="The Knight Yields"
           rewardRarity="rare"
-          itemName="Knight's Badge"
-          itemIcon={<BadgeIcon color="#9aa5ad" size={56} />}
+          itemName="Knight's Necklace"
+          itemIcon={<NecklaceIcon color="#9aa5ad" size={56} />}
           onReveal={grantKnightVictoryLoot}
           onClose={() => setShowVictory(false)}
         />
@@ -967,14 +991,35 @@ function HealthBar({
 }
 
 function Heart({ hit }: { hit: boolean }) {
+  const glow = hit
+    ? "drop-shadow(0 0 8px #ff5c5c) drop-shadow(0 0 16px rgba(255,92,92,0.7))"
+    : "drop-shadow(0 0 5px rgba(138,31,31,0.65))";
+
   return (
-    <div
-      className="h-9 w-9 rotate-45 transition-all duration-150"
-      style={{
-        background: hit ? "#ff5c5c" : "#8a1f1f",
-        boxShadow: hit ? "0 0 22px #ff5c5c, 0 0 40px rgba(255,92,92,0.6)" : "0 0 10px rgba(138,31,31,0.5)",
-      }}
-    />
+    <svg
+      width="48"
+      height="58"
+      viewBox="0 0 48 58"
+      aria-label="Player heart"
+      className="overflow-visible transition-[filter] duration-150"
+      style={{ filter: glow }}
+    >
+      {/* Great vessels */}
+      <path d="M28 16 C27 9 29 4 35 2 L40 7 C35 9 34 13 35 18" fill="#b52d32" stroke="#64131b" strokeWidth="2" />
+      <path d="M20 16 C18 10 14 7 10 7 L9 14 C13 14 15 17 16 21" fill="#7f242d" stroke="#56121a" strokeWidth="2" />
+      <path d="M24 15 C22 8 23 4 27 1 L31 5 C28 8 29 12 30 16" fill="#d44a45" stroke="#6d171b" strokeWidth="2" />
+
+      {/* Atria and ventricles form an asymmetric anatomical silhouette. */}
+      <path
+        d="M23 14 C17 10 10 12 7 18 C3 25 6 35 12 41 C16 46 20 52 23 57 C27 53 31 49 36 44 C43 37 46 28 42 20 C39 14 33 12 28 16 C26 14 25 13 23 14 Z"
+        fill={hit ? "#ff5c5c" : "#98252b"}
+        stroke="#581119"
+        strokeWidth="2"
+      />
+      <path d="M25 17 C31 20 34 27 33 35 C32 43 27 49 23 55" fill="none" stroke="#d84b4d" strokeWidth="2.5" opacity="0.8" />
+      <path d="M11 21 C15 18 19 19 21 23 C18 25 15 28 14 33" fill="none" stroke="#6e1922" strokeWidth="2" />
+      <path d="M35 20 C39 24 39 30 37 35" fill="none" stroke="#f0786f" strokeWidth="1.6" opacity="0.65" />
+    </svg>
   );
 }
 
@@ -1019,14 +1064,15 @@ function PressurePlate({ x, armed }: { x: number; armed: boolean }) {
   );
 }
 
-// Buried under the heart, invisible at rest — punches straight out to
-// exactly the reach boundary (the same GLOVE_REACH_X line drawn by
-// GloveRangeZone), landed or whiffed, then retracts. `left` itself (not a
-// fixed-px transform) is what animates between resting and extended, so
-// the fist's tip always travels the true reach distance in real arena
-// pixels — a percentage of the actual container width, same as the
-// boundary line — rather than some arbitrary short jab that reads as
-// shorter than the range it's supposed to represent.
+// Resting just beyond the heart's front edge, the glove punches straight out
+// to exactly the reach
+// boundary (the same GLOVE_REACH_X line drawn by GloveRangeZone), landed
+// or whiffed, then retracts again. `left` itself (not a fixed-px
+// transform) is what animates between resting and extended, so the fist's
+// tip always travels the true reach distance in real arena pixels — a
+// percentage of the actual container width, same as the boundary line —
+// rather than some arbitrary short jab that reads as shorter than the
+// range it's supposed to represent.
 function BoxingGlove({
   x,
   y,
@@ -1042,26 +1088,58 @@ function BoxingGlove({
   const extendedLeft = Math.min(100, x + reach);
   return (
     <div
-      className="absolute -translate-y-1/2 transition-[left,transform,opacity] ease-out"
+      className="absolute z-20 -translate-y-1/2 transition-[left,transform] ease-out"
       style={{
         left: `${punching ? extendedLeft : restLeft}%`,
         top: `${y}%`,
-        // anchored by its right edge (the fist's tip), so `left` always
-        // marks exactly where the punch reaches rather than where the
-        // glove's own body happens to start
-        transform: punching ? "translateX(-100%) scale(1)" : "translateX(-100%) scale(0.4)",
-        opacity: punching ? 1 : 0,
+        // At rest the cuff clears the heart's right edge entirely. During
+        // a punch its tip is anchored to `left`, so it still lands exactly
+        // on the range boundary.
+        transform: punching
+          ? "translateX(-100%) scale(1) rotate(0deg)"
+          : "translateX(28px) scale(0.72) rotate(-4deg)",
+        transformOrigin: punching ? "right center" : "left center",
         transitionDuration: punching ? "180ms" : "260ms",
       }}
     >
-      <div
-        className="h-7 w-9"
-        style={{
-          clipPath: "polygon(0% 45%, 15% 15%, 45% 0%, 80% 5%, 100% 30%, 95% 65%, 70% 100%, 30% 95%, 5% 75%)",
-          background: "linear-gradient(160deg, #ff6b5c 0%, #c4271a 55%, #7a1409 100%)",
-          boxShadow: "0 0 14px rgba(255,77,77,0.7)",
-        }}
-      />
+      <svg
+        width="52"
+        height="38"
+        viewBox="0 0 52 38"
+        aria-label="Boxing glove"
+        className="overflow-visible"
+        style={{ filter: "drop-shadow(0 0 7px rgba(255,77,77,0.72))" }}
+      >
+        {/* Wide wrist cuff makes the silhouette read as a glove, not a fist. */}
+        <path d="M1 10 H17 V34 H1 Z" fill="#8d1712" stroke="#5d0d09" strokeWidth="2" />
+        <path d="M4 12 H14 V32 H4 Z" fill="#d33428" />
+        <path d="M5 15 H14" stroke="#ff8a76" strokeWidth="2" opacity="0.7" />
+
+        {/* Padded knuckle section. */}
+        <path
+          d="M14 19 C12 11 17 4 27 2 C35 0 44 2 48 8 C53 15 49 24 42 27 C41 33 36 37 29 37 H23 C16 37 11 33 11 27 C11 23 12 21 14 19 Z"
+          fill="#d63227"
+          stroke="#6e100b"
+          strokeWidth="2"
+        />
+        <path
+          d="M22 5 C29 2 39 3 44 7 C47 9 48 12 48 15"
+          fill="none"
+          stroke="#ff7969"
+          strokeWidth="3"
+          strokeLinecap="round"
+          opacity="0.75"
+        />
+
+        {/* Folded thumb and its seam separate it from the knuckle pad. */}
+        <path
+          d="M22 18 C16 17 12 20 12 25 C12 30 16 33 21 33 C25 33 28 30 28 26 C28 22 26 19 22 18 Z"
+          fill="#b9231b"
+          stroke="#6e100b"
+          strokeWidth="2"
+        />
+        <path d="M24 19 C28 22 29 27 26 31" fill="none" stroke="#f45b4d" strokeWidth="1.5" opacity="0.8" />
+      </svg>
     </div>
   );
 }

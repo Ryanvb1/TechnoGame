@@ -7,6 +7,7 @@ import { ReplayMissionButton } from "./ReplayMissionButton";
 import { VictoryScreen } from "./VictoryScreen";
 import { useSceneTravel } from "./PageTransition";
 import { markSnailRescued, readSnailRescued } from "./snailState";
+import { useHideCompanionSnail } from "./companionSnail";
 
 // Keeps the boss-fight start menu's open/closed state off the page itself,
 // so app/careful/page.tsx (and, importantly, the server-rendered FirePit it
@@ -22,6 +23,11 @@ export function PitGate({ children }: { children: React.ReactNode }) {
   const [replaying, setReplaying] = useState(false);
   const [showVictory, setShowVictory] = useState(false);
   const travel = useSceneTravel();
+
+  // SnailRescueRope supplies the mission's own snail and movement model.
+  // Keep the free-roaming player visible for briefings and the completed
+  // room, but remove it for the live first run and live replays.
+  useHideCompanionSnail((started && !rescued) || replaying);
 
   useEffect(() => {
     // Already rescued on a prior visit — the mission's done, so there's

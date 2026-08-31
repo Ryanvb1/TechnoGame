@@ -12,11 +12,18 @@ import {
   SNAIL_PULL_PROGRESS_KEY,
   SNAIL_RESCUED_KEY,
 } from "./snailState";
-import { KNIGHT_DEFEATED_KEY } from "./throneState";
+import { KNIGHT_DEFEATED_KEY, TOAD_DEFEATED_KEY } from "./throneState";
+import { CAVE_BEAR_DEFEATED_KEY, TRANSFORMER_DEFEATED_KEY } from "./missionState";
 import { RAINBOW_BALLS_KEY } from "./rainbowBalls";
 import { FOOTSTEP_COLOR_KEY } from "./footstepColor";
-import { AIRPORT_ACCESS_KEY, CAVE_ACCESS_KEY } from "./siteAccess";
-import { EQUIPPED_ITEM_KEY, INVENTORY_KEY } from "./inventory";
+import { CAVE_ACCESS_KEY } from "./siteAccess";
+import {
+  EQUIPPED_ITEM_KEY,
+  EQUIPPED_NECKLACE_KEY,
+  EQUIPPED_SHELL_KEY,
+  FOREST_CHEST_OPENED_KEY,
+  INVENTORY_KEY,
+} from "./inventory";
 
 // All the browser-local "game progress" this site tracks. Add new keys here
 // as new progress mechanics are introduced so Reset stays complete.
@@ -28,15 +35,20 @@ const PROGRESS_KEYS = [
   SNAIL_RESCUED_KEY,
   SNAIL_PULL_PROGRESS_KEY,
   KNIGHT_DEFEATED_KEY,
+  TOAD_DEFEATED_KEY,
+  CAVE_BEAR_DEFEATED_KEY,
+  TRANSFORMER_DEFEATED_KEY,
   RAINBOW_BALLS_KEY,
   FOOTSTEP_COLOR_KEY,
   ORB_MISSION_STARTED_KEY,
   ORB_MISSION_COMPLETED_KEY,
   ...ORB_IDS.map(orbCollectedKey),
-  AIRPORT_ACCESS_KEY,
   CAVE_ACCESS_KEY,
   INVENTORY_KEY,
   EQUIPPED_ITEM_KEY,
+  EQUIPPED_SHELL_KEY,
+  EQUIPPED_NECKLACE_KEY,
+  FOREST_CHEST_OPENED_KEY,
 ];
 
 export function resetGameProgress() {

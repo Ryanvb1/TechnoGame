@@ -1,34 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { readAirportUnlocked } from "./siteAccess";
+import { useState } from "react";
 import { LockOutline } from "./LockOutline";
-import { useSceneTravel } from "./PageTransition";
+import { CautionTape } from "./CautionTape";
 
 const MESSAGE_MS = 2200;
 
 // A runway with a small terminal building beside it, tucked in the
-// top-right corner of the hub. Locked by default; purchasable in the
-// kiosk's vending machine (see VendingMachine.tsx). Once unlocked it's a
-// real destination (see app/airport/page.tsx) — "up" as in taking off,
-// mirrored by that page's own backDirection="down" to land back. The
-// runway is what actually reads as "airport" at a glance; the terminal is
-// deliberately plain next to it.
+// top-right corner of the hub. It stays visible as a preview, but clearly
+// communicates that the airport is unavailable in this version.
 export function Airport() {
-  const [unlocked, setUnlocked] = useState(false);
   const [showMessage, setShowMessage] = useState(false);
-  const travel = useSceneTravel();
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from localStorage, an external store the server can't see; see comment above.
-    setUnlocked(readAirportUnlocked());
-  }, []);
 
   function handleClick() {
-    if (unlocked) {
-      travel("/airport");
-      return;
-    }
     setShowMessage(true);
     window.setTimeout(() => setShowMessage(false), MESSAGE_MS);
   }
@@ -37,18 +21,18 @@ export function Airport() {
     <div className="fixed right-6 top-6 z-20 sm:right-10 sm:top-10">
       {showMessage && (
         <div className="pointer-events-none absolute top-full right-0 mt-3 w-36 border border-neon-dim bg-background/95 px-3 py-2 text-center text-[0.6rem] uppercase tracking-[0.2em] text-foreground shadow-[0_0_15px_var(--neon-dim)]">
-          Locked
+          Under construction
         </div>
       )}
       <button
         onClick={handleClick}
-        aria-label={unlocked ? "Enter the airport" : "A locked airport"}
+        aria-label="Airport blocked by caution tape"
         className="group relative flex touch-manipulation flex-col items-end justify-end outline-none"
       >
-        <LockOutline unlocked={unlocked} className={`p-2 ${unlocked ? "" : "opacity-50"}`}>
+        <LockOutline unlocked={false} className="p-2 opacity-50">
         <div
           className="relative h-12 w-[196px]"
-          style={{ filter: unlocked ? "drop-shadow(0 0 10px var(--neon-dim))" : "none" }}
+          style={{ filter: "none" }}
         >
           {/* runway, stretching left from the tower's base — the piece
               that actually signals "airport" rather than just "tower" */}
@@ -110,6 +94,7 @@ export function Airport() {
             {/* entrance */}
             <div className="absolute bottom-0 left-1/2 h-4 w-3 -translate-x-1/2" style={{ background: "#2a2e30" }} />
           </div>
+          <CautionTape className="absolute left-1/2 top-1/2 z-10 w-[212px] -translate-x-1/2 -translate-y-1/2 -rotate-6" />
         </div>
         </LockOutline>
         {/* Grows downward from this box's own fixed top edge, same as the

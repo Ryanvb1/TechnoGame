@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { PageTransitionProvider } from "@/components/PageTransition";
+import { PlayerSnail } from "@/components/PlayerSnail";
+import { CompanionSnailProvider } from "@/components/companionSnail";
+import { MusicProvider } from "@/components/MusicProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -29,7 +32,14 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <PageTransitionProvider>{children}</PageTransitionProvider>
+        <MusicProvider>
+          <PageTransitionProvider>
+            <CompanionSnailProvider>
+              {children}
+              <PlayerSnail />
+            </CompanionSnailProvider>
+          </PageTransitionProvider>
+        </MusicProvider>
       </body>
     </html>
   );

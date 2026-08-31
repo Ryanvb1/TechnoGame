@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CollectibleOrb } from "./CollectibleOrb";
 import { readCaveUnlocked } from "./siteAccess";
 import { LockOutline } from "./LockOutline";
 import { useSceneTravel } from "./PageTransition";
@@ -13,10 +12,10 @@ const MESSAGE_MS = 2200;
 // machine (see VendingMachine.tsx). Once unlocked it's a real destination
 // (see app/cave/page.tsx) — "down" as in descending into it, mirrored by
 // that page's own backDirection="up" to climb back out. One of the
-// gnome's hidden orbs (see gnomeProgress.ts) sits tucked into the mound's
-// own shoulder, on the right — no separate prop of its own, just DOM
-// order stacking it behind that part of the rock (see CollectibleOrb's
-// own comment).
+// gnome's hidden orbs (see gnomeProgress.ts) used to sit tucked into the
+// mound's shoulder here, but that put it behind a locked destination — it
+// now lives in AmbientDetails.tsx, tucked behind one of the hub's floating
+// shard clusters instead, so it's reachable without unlocking anything.
 export function Cave() {
   const [unlocked, setUnlocked] = useState(false);
   const [showMessage, setShowMessage] = useState(false);
@@ -68,11 +67,6 @@ export function Cave() {
               background: "linear-gradient(180deg, #4c4740 0%, #2e2a24 100%)",
             }}
           />
-          {/* the orb tucked into the mound's shoulder — rendered before the
-              main rock layer below so that layer's opaque body naturally
-              covers its lower half; only the upper half pokes into the
-              open air above the rock line */}
-          <CollectibleOrb id="hub" style={{ left: 128, top: 32 }} />
           {/* main rocky mound — jagged across the left/center, then a
               clean diagonal shoulder on the right (82%→100%) that the orb
               above sits half-tucked behind */}

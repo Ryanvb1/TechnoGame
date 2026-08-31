@@ -4,7 +4,7 @@ import { MAX_BEAR_HEALTH, MAX_PLAYER_HEALTH } from "./caveBearFightConfig";
 // HealthBar) specifically so CaveBearFight.tsx itself stays small.
 export function CaveBearHealthBars({ playerHealth, bearHealth }: { playerHealth: number; bearHealth: number }) {
   return (
-    <div className="flex w-full max-w-md items-center gap-4 sm:max-w-lg">
+    <div className="relative z-30 flex w-full max-w-md items-center gap-4 sm:max-w-lg">
       <HealthBar label="You" value={playerHealth} max={MAX_PLAYER_HEALTH} color="var(--neon)" />
       <HealthBar label="Cave Bear" value={bearHealth} max={MAX_BEAR_HEALTH} color="#e04b3b" align="right" />
     </div>

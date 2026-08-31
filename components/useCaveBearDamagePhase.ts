@@ -43,6 +43,8 @@ export function useCaveBearDamagePhase({
   const bearDriftXRef = useRef(50);
   const aimXRef = useRef<number | null>(null);
   const firedRef = useRef(false);
+  const aimRafRef = useRef<number | null>(null);
+  const pendingAimRef = useRef<number | null>(null);
 
   // Resets for each fresh entry into the Damage Phase — same precedented
   // exception as FightScene's own stage-mirroring effect (re-arming
@@ -57,6 +59,12 @@ export function useCaveBearDamagePhase({
     setShot(null);
     setAimX(null);
   }, [active]);
+
+  useEffect(() => {
+    return () => {
+      if (aimRafRef.current !== null) cancelAnimationFrame(aimRafRef.current);
+    };
+  }, []);
 
   // The bear's autonomous drift — requires the player to actively track
   // him rather than shoot at a stationary target. A single rAF loop moves
@@ -119,7 +127,12 @@ export function useCaveBearDamagePhase({
       if (!rect) return;
       const pct = Math.min(98, Math.max(2, ((clientX - rect.left) / rect.width) * 100));
       aimXRef.current = pct;
-      setAimX(pct);
+      pendingAimRef.current = pct;
+      if (aimRafRef.current !== null) return;
+      aimRafRef.current = requestAnimationFrame(() => {
+        aimRafRef.current = null;
+        if (pendingAimRef.current !== null) setAimX(pendingAimRef.current);
+      });
     },
     [arenaRef],
   );
@@ -133,7 +146,7 @@ export function useCaveBearDamagePhase({
   );
 
   const handleShoot = useCallback(
-    (e: PointerEvent<HTMLDivElement>) => {
+    (e: PointerEvent<HTMLElement>) => {
       if (!active || firedRef.current) return;
       firedRef.current = true;
       updateAimFromClientX(e.clientX);

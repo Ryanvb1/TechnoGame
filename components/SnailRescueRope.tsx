@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { KeyboardEvent, PointerEvent } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent } from "react";
 import { ScaredSnail } from "./ScaredSnail";
 import { ThoughtBubble } from "./ThoughtBubble";
 import { DefeatProgressBar } from "./DefeatProgressBar";
+import { useSnailCosmetics } from "./useSnailCosmetics";
+import { useSoundEffects } from "./MusicProvider";
 import {
   markSnailPleaViewed,
   markSnailRescued,
@@ -66,6 +68,7 @@ const MAX_HEALTH = 3;
 // ticks.
 const INVULNERABLE_MS = 1100;
 const HIT_FLASH_MS = 380;
+const HIT_NOTICE_MS = 1350;
 // How long "Defeat" holds before handing back to the mission briefing —
 // matches ThroneRoomScene's own DEFEAT_DISPLAY_MS for the same beat.
 const DEFEAT_DISPLAY_MS = 3200;
@@ -94,6 +97,8 @@ export function SnailRescueRope({
   // rendering this and hand back to the "Replay" trigger.
   onComplete?: () => void;
 }) {
+  const cosmetics = useSnailCosmetics();
+  const playSound = useSoundEffects();
   // This page is statically generated, so the server/build-time HTML always
   // has to assume "not rescued, no progress" (no localStorage on the
   // server); the effect below syncs in the real values right after mount.
@@ -103,6 +108,7 @@ export function SnailRescueRope({
   const [snailPos, setSnailPos] = useState({ x: 50, y: ARM_LENGTH_START_PCT });
   const [boosting, setBoosting] = useState(false);
   const [hitFlash, setHitFlash] = useState(false);
+  const [damageNotice, setDamageNotice] = useState<number | null>(null);
   const [showPlea, setShowPlea] = useState(false);
   const [geyserPhases, setGeyserPhases] = useState<GeyserPhase[]>(() => GEYSER_X_PCTS.map(() => "idle"));
   const [defeated, setDefeated] = useState(false);
@@ -120,6 +126,7 @@ export function SnailRescueRope({
   const geysersRef = useRef<GeyserState[]>(GEYSER_X_PCTS.map(() => ({ phase: "idle" as GeyserPhase, until: 0 })));
   const rafRef = useRef<number | null>(null);
   const lastFrameRef = useRef<number | null>(null);
+  const damageNoticeTimerRef = useRef<number | null>(null);
   const timers = useRef<number[]>([]);
 
   useEffect(() => {
@@ -175,6 +182,7 @@ export function SnailRescueRope({
       // eslint-disable-next-line react-hooks/exhaustive-deps -- see comment above.
       timers.current.forEach((id) => window.clearTimeout(id));
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      if (damageNoticeTimerRef.current !== null) window.clearTimeout(damageNoticeTimerRef.current);
       writeSnailPullProgress(progressRef.current);
     };
   }, []);
@@ -205,12 +213,14 @@ export function SnailRescueRope({
       if (progressRef.current >= 100) {
         writeSnailPullProgress(100);
         markSnailRescued();
+        playSound("victory");
         setRescued(true);
         onComplete?.();
         return;
       }
 
       let justHit = false;
+      let justErupted = false;
       const nextPhases = geysersRef.current.map((g, i) => {
         if (now >= g.until) {
           if (g.phase === "idle") {
@@ -218,6 +228,7 @@ export function SnailRescueRope({
             g.until = now + GEYSER_TELEGRAPH_MS;
           } else if (g.phase === "telegraph") {
             g.phase = "erupt";
+            justErupted = true;
             g.until = now + GEYSER_ERUPT_MS;
           } else {
             g.phase = "idle";
@@ -234,11 +245,21 @@ export function SnailRescueRope({
         return g.phase;
       });
       setGeyserPhases(nextPhases);
+      if (justErupted) playSound("fire");
 
       if (justHit) {
+        playSound("player-hit");
         invulnerableUntilRef.current = now + INVULNERABLE_MS;
         healthRef.current = Math.max(0, healthRef.current - 1);
         setHealth(healthRef.current);
+        setDamageNotice(healthRef.current);
+        if (damageNoticeTimerRef.current !== null) {
+          window.clearTimeout(damageNoticeTimerRef.current);
+        }
+        damageNoticeTimerRef.current = window.setTimeout(() => {
+          setDamageNotice(null);
+          damageNoticeTimerRef.current = null;
+        }, HIT_NOTICE_MS);
         setHitFlash(true);
         timers.current.push(window.setTimeout(() => setHitFlash(false), HIT_FLASH_MS));
         if (healthRef.current <= 0) {
@@ -248,6 +269,7 @@ export function SnailRescueRope({
           // own progress bar before that same reset wipes it.
           defeatedRef.current = true;
           setDefeated(true);
+          playSound("defeat");
           setDefeatProgress(progressRef.current);
           progressRef.current = 0;
           writeSnailPullProgress(0);
@@ -265,7 +287,7 @@ export function SnailRescueRope({
       rafRef.current = null;
       lastFrameRef.current = null;
     };
-  }, [rescued, onDefeat, onComplete]);
+  }, [rescued, onDefeat, onComplete, playSound]);
 
   function beginBoost() {
     if (defeatedRef.current) return;
@@ -291,15 +313,50 @@ export function SnailRescueRope({
     beginBoost();
   }
 
-  function handleKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
+  function handleKeyDown(e: ReactKeyboardEvent<HTMLButtonElement>) {
     if (e.repeat || (e.key !== " " && e.key !== "Enter")) return;
     e.preventDefault();
     beginBoost();
   }
 
-  function handleKeyUp(e: KeyboardEvent<HTMLButtonElement>) {
+  function handleKeyUp(e: ReactKeyboardEvent<HTMLButtonElement>) {
     if (e.key === " " || e.key === "Enter") endBoost();
   }
+
+  // Space is a mission-wide control, not something that only works after
+  // tabbing to or clicking the on-screen speed button.
+  useEffect(() => {
+    function isTypingTarget(target: EventTarget | null) {
+      if (!(target instanceof HTMLElement)) return false;
+      return (
+        target.isContentEditable ||
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.tagName === "SELECT"
+      );
+    }
+
+    function handleWindowKeyDown(event: KeyboardEvent) {
+      if (event.code !== "Space" || isTypingTarget(event.target)) return;
+      event.preventDefault();
+      if (defeatedRef.current) return;
+      boostingRef.current = true;
+      setBoosting(true);
+    }
+
+    function handleWindowKeyUp(event: KeyboardEvent) {
+      if (event.code !== "Space") return;
+      boostingRef.current = false;
+      setBoosting(false);
+    }
+
+    window.addEventListener("keydown", handleWindowKeyDown);
+    window.addEventListener("keyup", handleWindowKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleWindowKeyDown);
+      window.removeEventListener("keyup", handleWindowKeyUp);
+    };
+  }, []);
 
   if (rescued) return null;
 
@@ -335,6 +392,27 @@ export function SnailRescueRope({
         <Geyser key={i} xPct={x} phase={geyserPhases[i]} />
       ))}
 
+      {hitFlash && (
+        <div
+          className="pointer-events-none fixed inset-0 z-40"
+          style={{
+            background: "rgba(255,35,20,0.16)",
+            boxShadow: "inset 0 0 55px rgba(255,35,20,0.95)",
+          }}
+        />
+      )}
+
+      {damageNotice !== null && (
+        <div className="pointer-events-none fixed left-1/2 top-24 z-50 -translate-x-1/2 animate-[defeat-shake_220ms_ease-in-out_3] border-2 border-[#ff4d4d] bg-[#240507]/95 px-7 py-4 text-center shadow-[0_0_25px_rgba(255,50,45,0.9)]">
+          <p className="text-2xl font-black uppercase tracking-[0.2em] text-[#ff5c5c] sm:text-3xl">
+            -1 Heart
+          </p>
+          <p className="mt-1 text-xs font-bold uppercase tracking-[0.22em] text-white">
+            {damageNotice} {damageNotice === 1 ? "heart" : "hearts"} remaining
+          </p>
+        </div>
+      )}
+
       {/* the snail, riding at the rope's end */}
       <div
         className="fixed z-40 -translate-x-1/2 -translate-y-1/2"
@@ -349,7 +427,7 @@ export function SnailRescueRope({
                 <p className="font-bold">PLEASE HELP ME!!</p>
               </ThoughtBubble>
             )}
-            <ScaredSnail fear={fear} />
+            <ScaredSnail fear={fear} {...cosmetics} />
           </div>
         </div>
       </div>
@@ -358,17 +436,25 @@ export function SnailRescueRope({
           the top, clear of the swing band below it */}
       <div className="fixed left-1/2 top-4 z-40 flex -translate-x-1/2 flex-col items-center gap-2 sm:top-6">
         <div className="flex items-center gap-4">
-          <div className="flex gap-1.5">
-            {Array.from({ length: MAX_HEALTH }).map((_, i) => (
-              <div
-                key={i}
-                className="h-3 w-3 rotate-45 transition-[background,box-shadow] duration-300"
-                style={{
-                  background: i < health ? "#ff5c5c" : "rgba(255,255,255,0.1)",
-                  boxShadow: i < health ? "0 0 6px #ff5c5c" : "none",
-                }}
-              />
-            ))}
+          <div className="flex flex-col items-start gap-0.5">
+            <div className="flex gap-1 text-lg leading-none" aria-label={`${health} of ${MAX_HEALTH} hearts remaining`}>
+              {Array.from({ length: MAX_HEALTH }).map((_, i) => (
+                <span
+                  key={i}
+                  className="transition-[color,filter,transform] duration-300"
+                  style={{
+                    color: i < health ? "#ff5c5c" : "rgba(255,255,255,0.15)",
+                    filter: i < health ? "drop-shadow(0 0 4px #ff5c5c)" : "none",
+                    transform: hitFlash && i === health ? "scale(1.45)" : "scale(1)",
+                  }}
+                >
+                  ♥
+                </span>
+              ))}
+            </div>
+            <span className="text-[0.5rem] font-bold uppercase tracking-[0.16em] text-white/75">
+              {health} / {MAX_HEALTH} hearts
+            </span>
           </div>
           <div className="h-1.5 w-32 border border-white/20 bg-white/5">
             <div
@@ -385,15 +471,15 @@ export function SnailRescueRope({
           onKeyDown={handleKeyDown}
           onKeyUp={handleKeyUp}
           disabled={defeated}
-          aria-label="Hold to swing faster"
+          aria-label="Hold Space or press and hold to swing faster"
           className={`touch-manipulation select-none border px-4 py-1.5 text-[0.6rem] uppercase tracking-[0.3em] transition-colors ${
             boosting ? "border-neon bg-neon/10 text-neon" : "border-neon-dim text-neon-dim hover:text-neon"
           }`}
         >
-          {boosting ? "Swinging Faster" : "Hold to Speed Up"}
+          {boosting ? "Swinging Faster" : "Hold Space to Speed Up"}
         </button>
         <p className="max-w-[16rem] text-center text-[0.55rem] uppercase tracking-[0.2em] text-foreground/40">
-          Speed up to swing clear of the geysers below.
+          Hold Space or the button to swing clear of the geysers below.
         </p>
       </div>
 

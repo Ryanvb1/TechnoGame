@@ -4,10 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { CaveBackground } from "./CaveBackground";
 import { CaveBear, type CaveBearPhase } from "./CaveBear";
 import { CaveBearFight } from "./CaveBearFight";
+import { useMusicTheme, useSoundEffects } from "./MusicProvider";
 import { BossFightStartMenu } from "./BossFightStartMenu";
 import { VictoryScreen } from "./VictoryScreen";
-import { BadgeIcon } from "./BadgeIcon";
+import { NecklaceIcon } from "./NecklaceIcon";
+import { KeyIcon } from "./KeyIcon";
 import { addToInventory } from "./inventory";
+import { ReplayMissionButton } from "./ReplayMissionButton";
+import { markCaveBearDefeated, readCaveBearDefeated } from "./missionState";
 
 // He sleeps until clicked, wakes with a beat to actually read before the
 // briefing covers him (same idea as ThroneRoomScene waiting out the
@@ -20,11 +24,19 @@ const WAKE_TO_BRIEFING_MS = 1800;
 
 export function CaveScene() {
   const [sequence, setSequence] = useState<Sequence>("sleeping");
+  const playSound = useSoundEffects();
+  useMusicTheme(sequence === "encounter" ? "bear-boss" : null);
   const [showVictory, setShowVictory] = useState(false);
+  const [completed, setCompleted] = useState(false);
   // CaveBackground forwards this onto its floor's own content slot, so
   // CaveBearFight can portal the fight's quadrant grid straight into that
   // real tilted floor plane instead of rendering a separate flat panel.
   const floorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing persisted mission completion after hydration.
+    setCompleted(readCaveBearDefeated());
+  }, []);
 
   // Re-arms the victory screen for every fresh transition into "won",
   // same pattern as ThroneRoomScene/FightScene.
@@ -32,6 +44,8 @@ export function CaveScene() {
     if (sequence !== "won") return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- re-arms the victory screen for this specific "won" transition, not a one-time mount default; see the identical pattern in ThroneRoomScene/FightScene.
     setShowVictory(true);
+    setCompleted(true);
+    markCaveBearDefeated();
   }, [sequence]);
 
   // Holds on "waking" just long enough for CaveBear's own sleeping->awake
@@ -45,6 +59,7 @@ export function CaveScene() {
 
   function handleWake() {
     if (sequence !== "sleeping") return;
+    playSound("boss-roar");
     setSequence("waking");
   }
 
@@ -62,8 +77,14 @@ export function CaveScene() {
     <>
       <CaveBackground ref={floorRef} awake={sequence !== "sleeping"} />
 
+      {completed && sequence === "sleeping" && (
+        <ReplayMissionButton label="Replay Cave Bear" onClick={() => setSequence("briefing")} />
+      )}
+
       <div className="relative flex flex-col items-center gap-6">
-        {sequence !== "encounter" && (
+        {sequence !== "encounter" &&
+          sequence !== "won" &&
+          (!completed || sequence !== "sleeping") && (
           <button
             onClick={handleWake}
             disabled={sequence !== "sleeping"}
@@ -83,7 +104,7 @@ export function CaveScene() {
               </span>
             )}
           </button>
-        )}
+          )}
 
         {sequence === "waking" && (
           <p className="animate-[fire-glow-pulse_1.2s_ease-in-out_infinite] text-xs uppercase tracking-[0.3em] text-neon">
@@ -96,7 +117,7 @@ export function CaveScene() {
             title="Cave Bear"
             concept="medium"
             gameplay="hard"
-            rewardRarity="epic"
+            rewardRarity="exotic"
             onBegin={() => setSequence("encounter")}
             onBack={handleRetreat}
             onInstaComplete={() => setSequence("won")}
@@ -108,11 +129,19 @@ export function CaveScene() {
         {sequence === "won" && showVictory && (
           <VictoryScreen
             title="Cave Bear Subdued"
-            rewardRarity="epic"
-            itemName="Cave Bear Badge"
-            itemIcon={<BadgeIcon color="#8a5a2b" size={56} />}
-            onReveal={() => addToInventory("cave-bear-badge")}
-            onClose={() => setSequence("sleeping")}
+            rewardRarity="exotic"
+            itemName="Cave Bear Necklace"
+            itemIcon={<NecklaceIcon color="#8a5a2b" size={56} />}
+            secondaryItemName="Forest Chest Key"
+            secondaryItemIcon={<KeyIcon size={26} />}
+            onReveal={() => {
+              addToInventory("cave-bear-badge");
+              addToInventory("forest-chest-key");
+            }}
+            onClose={() => {
+              setShowVictory(false);
+              setSequence("sleeping");
+            }}
           />
         )}
       </div>

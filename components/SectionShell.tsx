@@ -4,8 +4,7 @@ import type { MouseEvent } from "react";
 import Link from "next/link";
 import { ARROW_CLIP_PATH, type Direction } from "./directions";
 import { useSceneTravel } from "./PageTransition";
-import { LocationSnail } from "./LocationSnail";
-import { CompanionSnailProvider } from "./companionSnail";
+import { useHideCompanionSnail } from "./companionSnail";
 
 // Pins the arrow to the screen edge it points toward. Up/down sit in the
 // top-right/bottom-right corner rather than dead-center — page titles are
@@ -38,6 +37,7 @@ export function SectionShell({
   titleInvisible = false,
   hideBackLabel = false,
   hideCompanionSnail = false,
+  clickOnlyInteractions = false,
 }: {
   title: string;
   children?: React.ReactNode;
@@ -57,8 +57,13 @@ export function SectionShell({
   // (before, after, or alongside it) would read as a second snail rather
   // than the same one.
   hideCompanionSnail?: boolean;
+  // The kiosk deliberately keeps its object interactions mouse/touch-only.
+  // This marks only the room content; the ordinary back arrow can still be
+  // reached and used by the player snail.
+  clickOnlyInteractions?: boolean;
 }) {
   const travel = useSceneTravel();
+  useHideCompanionSnail(hideCompanionSnail);
 
   function handleBack(e: MouseEvent<HTMLAnchorElement>) {
     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
@@ -69,50 +74,48 @@ export function SectionShell({
   }
 
   return (
-    <CompanionSnailProvider>
-      <main
-        className={`flex min-h-screen flex-col gap-10 px-8 py-12 sm:px-16 ${
-          centered ? "items-center text-center" : "items-start"
-        }`}
+    <main
+      className={`flex min-h-screen flex-col gap-10 px-8 py-12 sm:px-16 ${
+        centered ? "items-center text-center" : "items-start"
+      }`}
+    >
+      <Link
+        href="/"
+        onClick={handleBack}
+        aria-label="Back to menu"
+        className={`group fixed z-40 flex items-center justify-center outline-none ${WALL_POSITION_CLASS[backDirection]}`}
       >
-        <Link
-          href="/"
-          onClick={handleBack}
-          aria-label="Back to menu"
-          className={`group fixed z-40 flex items-center justify-center outline-none ${WALL_POSITION_CLASS[backDirection]}`}
-        >
+        <span
+          style={{ clipPath: ARROW_CLIP_PATH[backDirection] }}
+          className="h-10 w-10 bg-neon-dim shadow-[0_0_10px_var(--neon-dim)] transition-all duration-200 ease-out group-hover:bg-neon group-hover:shadow-[0_0_20px_var(--neon),0_0_40px_var(--neon-dim)]"
+        />
+        {!hideBackLabel && (
           <span
-            style={{ clipPath: ARROW_CLIP_PATH[backDirection] }}
-            className="h-10 w-10 bg-neon-dim shadow-[0_0_10px_var(--neon-dim)] transition-all duration-200 ease-out group-hover:bg-neon group-hover:shadow-[0_0_20px_var(--neon),0_0_40px_var(--neon-dim)]"
-          />
-          {!hideBackLabel && (
-            <span
-              className={`absolute whitespace-nowrap text-xs uppercase tracking-[0.3em] text-neon-dim transition-colors duration-200 group-hover:text-neon ${WALL_LABEL_CLASS[backDirection]}`}
-            >
-              Back
-            </span>
-          )}
-        </Link>
-        {!hideCompanionSnail && <LocationSnail />}
-        {!hideTitle && (
-          <h1
-            className={`text-4xl font-bold uppercase tracking-widest text-neon sm:text-6xl ${
-              titleInvisible ? "invisible" : ""
-            }`}
+            className={`absolute whitespace-nowrap text-xs uppercase tracking-[0.3em] text-neon-dim transition-colors duration-200 group-hover:text-neon ${WALL_LABEL_CLASS[backDirection]}`}
           >
-            {title}
-          </h1>
+            Back
+          </span>
         )}
-        <div
-          className={`max-w-2xl text-foreground/80 ${
-            centered && (backDirection === "left" || backDirection === "right")
-              ? "px-12 sm:px-0"
-              : ""
+      </Link>
+      {!hideTitle && (
+        <h1
+          className={`text-4xl font-bold uppercase tracking-widest text-neon sm:text-6xl ${
+            titleInvisible ? "invisible" : ""
           }`}
         >
-          {children}
-        </div>
-      </main>
-    </CompanionSnailProvider>
+          {title}
+        </h1>
+      )}
+      <div
+        data-snail-click-only={clickOnlyInteractions ? "" : undefined}
+        className={`max-w-2xl text-foreground/80 ${
+          centered && (backDirection === "left" || backDirection === "right")
+            ? "px-12 sm:px-0"
+            : ""
+        }`}
+      >
+        {children}
+      </div>
+    </main>
   );
 }

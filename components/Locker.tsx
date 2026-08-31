@@ -1,42 +1,72 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ITEM_DEFINITIONS, readEquippedItem, readInventory, setEquippedItem, type ItemId } from "./inventory";
+import {
+  INVENTORY_CHANGED_EVENT,
+  ITEM_DEFINITIONS,
+  MISC_ITEM_IDS,
+  NECKLACE_ITEM_IDS,
+  SHELL_ITEM_IDS,
+  readEquippedNecklace,
+  readEquippedShell,
+  readInventory,
+  setEquippedNecklace,
+  setEquippedShell,
+  type ItemId,
+  type NecklaceItemId,
+  type ShellItemId,
+} from "./inventory";
 import { RainbowShellIcon } from "./RainbowShellIcon";
 import { DefaultShellIcon } from "./DefaultShellIcon";
-import { BadgeIcon } from "./BadgeIcon";
+import { SolidShellIcon } from "./SolidShellIcon";
+import { NecklaceIcon } from "./NecklaceIcon";
+import { KeyIcon } from "./KeyIcon";
 
-// Extend this alongside ITEM_DEFINITIONS as more real loot exists. Each
-// boss's badge is the same BadgeIcon shape, recolored to that creature.
 const ITEM_ICON: Record<ItemId, React.ReactNode> = {
   "rainbow-shell": <RainbowShellIcon size={26} />,
-  "knight-badge": <BadgeIcon color="#9aa5ad" size={26} />,
-  "toad-badge": <BadgeIcon color="#7fae4a" size={26} />,
-  "cave-bear-badge": <BadgeIcon color="#8a5a2b" size={26} />,
-  "transformer-badge": <BadgeIcon color="#4dabf7" size={26} />,
+  "black-shell": <SolidShellIcon color="black" size={26} />,
+  "white-shell": <SolidShellIcon color="white" size={26} />,
+  "knight-badge": <NecklaceIcon color="#9aa5ad" size={26} />,
+  "toad-badge": <NecklaceIcon color="#7fae4a" size={26} />,
+  "cave-bear-badge": <NecklaceIcon color="#8a5a2b" size={26} />,
+  "transformer-badge": <NecklaceIcon color="#4dabf7" size={26} />,
+  "forest-chest-key": <KeyIcon size={26} />,
 };
 
-// A new area in the kiosk for equipping loot pulled from victory chests
-// (see VictoryScreen.tsx) — separate from the vending machine, which
-// spends rainbow balls rather than showing off what you've already won.
 export function Locker() {
   const [inventory, setInventory] = useState<ItemId[]>([]);
-  const [equipped, setEquipped] = useState<ItemId | null>(null);
+  const [equippedShell, setEquippedShellState] = useState<ShellItemId | null>(null);
+  const [equippedNecklace, setEquippedNecklaceState] = useState<NecklaceItemId | null>(null);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from localStorage, an external store the server can't see; see the same pattern throughout the site.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing browser-local inventory/equipment after hydration.
     setInventory(readInventory());
-    setEquipped(readEquippedItem());
+    setEquippedShellState(readEquippedShell());
+    setEquippedNecklaceState(readEquippedNecklace());
   }, []);
 
-  // Also used for the always-present "Default Shell" tile (id: null) — the
-  // same toggle behavior applies: clicking it while something else is
-  // equipped switches to it (clears the slot), clicking it while it's
-  // already active is a no-op.
-  function toggleEquip(id: ItemId | null) {
-    const next = equipped === id ? null : id;
-    setEquippedItem(next);
-    setEquipped(next);
+  useEffect(() => {
+    function syncInventory() {
+      setInventory(readInventory());
+    }
+    window.addEventListener(INVENTORY_CHANGED_EVENT, syncInventory);
+    return () => window.removeEventListener(INVENTORY_CHANGED_EVENT, syncInventory);
+  }, []);
+
+  const shells = SHELL_ITEM_IDS.filter((id) => inventory.includes(id));
+  const necklaces = NECKLACE_ITEM_IDS.filter((id) => inventory.includes(id));
+  const miscellaneous = MISC_ITEM_IDS.filter((id) => inventory.includes(id));
+
+  function equipShell(id: ShellItemId | null) {
+    const next = equippedShell === id ? null : id;
+    setEquippedShell(next);
+    setEquippedShellState(next);
+  }
+
+  function equipNecklace(id: NecklaceItemId) {
+    const next = equippedNecklace === id ? null : id;
+    setEquippedNecklace(next);
+    setEquippedNecklaceState(next);
   }
 
   return (
@@ -48,54 +78,106 @@ export function Locker() {
             {inventory.length} item{inventory.length === 1 ? "" : "s"}
           </span>
         </div>
-        <div className="p-2">
-          {/* Capped and internally scrollable — the locker keeps growing as
-              more bosses drop badges, and it shouldn't be what pushes the
-              rest of the kiosk page into needing to scroll (see
-              app/crate/page.tsx). */}
-          <div className="grid max-h-[190px] grid-cols-3 gap-1.5 overflow-y-auto">
-            {/* Always available, regardless of what's been won — equipping
-                it is just clearing the equip slot, but it needs its own
-                visible tile so "go back to normal" is a real choice here
-                rather than something you can only do by unequipping loot. */}
-            <button
-              onClick={() => toggleEquip(null)}
-              className={`flex touch-manipulation flex-col items-center gap-1 border px-1 py-2 text-center transition-colors ${
-                equipped === null ? "border-neon bg-neon/10" : "border-neon-dim/40 hover:border-neon"
-              }`}
-            >
-              <DefaultShellIcon size={26} />
-              <span className="text-[0.45rem] uppercase leading-tight tracking-[0.1em] text-foreground/80">
-                Default Shell
-              </span>
-              <span className="text-[0.5rem] text-neon-dim">{equipped === null ? "Equipped" : "Equip"}</span>
-            </button>
-            {inventory.map((id) => {
-              const owned = equipped === id;
-              return (
-                <button
-                  key={id}
-                  onClick={() => toggleEquip(id)}
-                  className={`flex touch-manipulation flex-col items-center gap-1 border px-1 py-2 text-center transition-colors ${
-                    owned ? "border-neon bg-neon/10" : "border-neon-dim/40 hover:border-neon"
-                  }`}
-                >
-                  {ITEM_ICON[id]}
-                  <span className="text-[0.45rem] uppercase leading-tight tracking-[0.1em] text-foreground/80">
-                    {ITEM_DEFINITIONS[id].name}
-                  </span>
-                  <span className="text-[0.5rem] text-neon-dim">{owned ? "Equipped" : "Equip"}</span>
-                </button>
-              );
-            })}
-          </div>
-          {inventory.length === 0 && (
-            <p className="px-2 pt-4 text-center text-[0.6rem] uppercase tracking-[0.2em] text-foreground/40">
-              No loot yet — victories will leave something here.
-            </p>
-          )}
+
+        <div className="max-h-[240px] space-y-3 overflow-y-auto p-2">
+          <LockerSection title="Shells">
+            <EquipmentTile
+              name="Default Shell"
+              icon={<DefaultShellIcon size={26} />}
+              equipped={equippedShell === null}
+              onClick={() => equipShell(null)}
+            />
+            {shells.map((id) => (
+              <EquipmentTile
+                key={id}
+                name={ITEM_DEFINITIONS[id].name}
+                icon={ITEM_ICON[id]}
+                equipped={equippedShell === id}
+                onClick={() => equipShell(id)}
+              />
+            ))}
+          </LockerSection>
+
+          <LockerSection title="Necklaces" empty={necklaces.length === 0}>
+            {necklaces.map((id) => (
+              <EquipmentTile
+                key={id}
+                name={ITEM_DEFINITIONS[id].name}
+                icon={ITEM_ICON[id]}
+                equipped={equippedNecklace === id}
+                onClick={() => equipNecklace(id)}
+              />
+            ))}
+          </LockerSection>
+
+          <LockerSection title="Miscellaneous" empty={miscellaneous.length === 0}>
+            {miscellaneous.map((id) => (
+              <div
+                key={id}
+                className="flex flex-col items-center gap-1 border border-neon-dim/25 px-1 py-2 text-center"
+              >
+                {ITEM_ICON[id]}
+                <span className="text-[0.45rem] uppercase leading-tight tracking-[0.1em] text-foreground/75">
+                  {ITEM_DEFINITIONS[id].name}
+                </span>
+                <span className="text-[0.5rem] text-foreground/35">Stored</span>
+              </div>
+            ))}
+          </LockerSection>
         </div>
       </div>
     </div>
+  );
+}
+
+function LockerSection({
+  title,
+  children,
+  empty = false,
+}: {
+  title: string;
+  children: React.ReactNode;
+  empty?: boolean;
+}) {
+  return (
+    <section>
+      <div className="mb-1 border-b border-neon-dim/25 pb-1 text-left text-[0.5rem] uppercase tracking-[0.28em] text-neon-dim">
+        {title}
+      </div>
+      {empty ? (
+        <p className="py-1 text-center text-[0.48rem] uppercase tracking-[0.15em] text-foreground/30">
+          None collected
+        </p>
+      ) : (
+        <div className="grid grid-cols-3 gap-1.5">{children}</div>
+      )}
+    </section>
+  );
+}
+
+function EquipmentTile({
+  name,
+  icon,
+  equipped,
+  onClick,
+}: {
+  name: string;
+  icon: React.ReactNode;
+  equipped: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex touch-manipulation flex-col items-center gap-1 border px-1 py-2 text-center transition-colors ${
+        equipped ? "border-neon bg-neon/10" : "border-neon-dim/40 hover:border-neon"
+      }`}
+    >
+      {icon}
+      <span className="text-[0.45rem] uppercase leading-tight tracking-[0.1em] text-foreground/80">
+        {name}
+      </span>
+      <span className="text-[0.5rem] text-neon-dim">{equipped ? "Equipped" : "Equip"}</span>
+    </button>
   );
 }

@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { REWARD_RARITY_INFO, type RewardRarity } from "./rewardRarity";
+import { addRainbowBalls } from "./rainbowBalls";
+import { useSoundEffects } from "./MusicProvider";
 
 type ChestState = "idle" | "opening" | "spinning" | "opened";
 
@@ -21,6 +23,8 @@ export function VictoryScreen({
   rewardRarity,
   itemName,
   itemIcon,
+  secondaryItemName,
+  secondaryItemIcon,
   onReveal,
   onClose,
 }: {
@@ -31,6 +35,12 @@ export function VictoryScreen({
   // defined yet, so this (and itemIcon) stay optional for now.
   itemName?: string;
   itemIcon?: ReactNode;
+  // A second, smaller item shown alongside the main one — for the rare
+  // case where a single victory grants two things at once (the cave
+  // bear's key, on top of its usual badge). Only ever shown together
+  // with the primary item above, never on its own.
+  secondaryItemName?: string;
+  secondaryItemIcon?: ReactNode;
   // Fires the instant the chest actually opens (not when this screen
   // mounts) — the right moment for a caller to actually grant an
   // inventory item, so it lines up with the reveal the player sees.
@@ -38,15 +48,23 @@ export function VictoryScreen({
   onClose: () => void;
 }) {
   const [state, setState] = useState<ChestState>("idle");
+  const playSound = useSoundEffects();
+  const rewardGranted = useRef(false);
   const info = REWARD_RARITY_INFO[rewardRarity];
 
   function handleOpen() {
     if (state !== "idle") return;
+    playSound("chest");
     setState("opening");
     window.setTimeout(() => {
       setState("spinning");
       window.setTimeout(() => {
         setState("opened");
+        playSound("reward");
+        if (!rewardGranted.current) {
+          rewardGranted.current = true;
+          addRainbowBalls(info.rainbowBalls);
+        }
         onReveal?.();
       }, SPIN_MS);
     }, LID_OPEN_MS);
@@ -63,6 +81,7 @@ export function VictoryScreen({
 
       <button
         onClick={handleOpen}
+        data-sfx="none"
         disabled={state !== "idle"}
         aria-label="Open the chest"
         className="group relative flex h-[230px] w-[220px] touch-manipulation flex-col items-center justify-end outline-none disabled:cursor-default"
@@ -180,22 +199,32 @@ export function VictoryScreen({
 
       {state === "opened" && (
         <div className="flex animate-[item-pop-in_0.4s_ease-out_both] flex-col items-center gap-3">
-          {itemIcon ?? (
-            <div
-              className="flex h-14 w-14 items-center justify-center text-xl font-bold"
+          {itemIcon}
+          {itemName && (
+            <p className="text-xl font-bold uppercase tracking-[0.15em]" style={{ color: info.color }}>
+              {itemName}
+            </p>
+          )}
+          <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.14em] text-neon">
+            <span
+              aria-hidden="true"
+              className="h-4 w-4 shrink-0"
               style={{
-                background: `linear-gradient(160deg, ${info.color} 0%, rgba(0,0,0,0.35) 130%)`,
-                boxShadow: `0 0 14px ${info.color}99`,
-                color: "rgba(0,0,0,0.55)",
+                clipPath: "circle(50% at 50% 50%)",
+                background:
+                  "conic-gradient(from 180deg, #ff4d4d, #ff9f43, #ffe066, #6bcf6b, #4dabf7, #7c5cff, #ff6ec7, #ff4d4d)",
+                boxShadow: "0 0 8px rgba(255,255,255,0.45)",
               }}
-            >
-              ?
+            />
+            +{info.rainbowBalls.toLocaleString()} Rainbow Balls
+          </div>
+          {secondaryItemName && (
+            <div className="mt-1 flex items-center gap-2 border-t border-neon-dim/30 pt-3 opacity-90">
+              <span className="text-sm text-neon-dim">+</span>
+              {secondaryItemIcon}
+              <span className="text-xs uppercase tracking-[0.15em] text-foreground/80">{secondaryItemName}</span>
             </div>
           )}
-          <p className="text-xl font-bold uppercase tracking-[0.15em]" style={{ color: info.color }}>
-            {itemName ?? `${info.label} Reward`}
-          </p>
-          <p className="text-xs uppercase tracking-[0.3em] text-foreground/50">{info.label}</p>
           <button
             onClick={onClose}
             className="mt-2 touch-manipulation border border-neon-dim px-5 py-2 text-xs uppercase tracking-[0.2em] text-neon-dim transition-colors hover:text-neon"

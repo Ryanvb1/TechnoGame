@@ -13,39 +13,44 @@ export const MAX_BEAR_HEALTH = 300;
 // Falling Panels replaced Body Slam outright (same damage value carried
 // over) — one miss on the recite check costs as much as the old slam did.
 export const PANELS_DAMAGE = 150;
-// Per strike, not per Scratch instance — a full 3-strike combo that lands
-// every hit costs 225, well above the old single-strike total.
+// One hit, no combo — reverted back from a briefly-tried 3-strike burst.
 export const SCRATCH_DAMAGE = 75;
 export const ROAR_DAMAGE = 100;
 // The bow is always fully drawn — one click, one shot, no charge tradeoff
 // — so there's a single damage value rather than a charged/quick split.
-// Set to 1/5 (20%) of the bear's own health per the user, i.e. the "Quick
-// Throw" fraction from the comment above — 5 clean hits to defeat him.
-export const BOW_SHOT_DAMAGE = 60;
+// Each clean hit removes exactly one third of the bear's maximum health,
+// so three hits defeat him from full health.
+export const BOW_SHOT_DAMAGE = MAX_BEAR_HEALTH / 3;
 
 // Survival Phase timing
 // Falling Panels: reveal shows the plates one at a time, then the player
 // must recite the order on the 1.5s-per-check clock the user specified.
+// Only 4 of the 6 plates are drawn into the sequence each time (not every
+// one) — a fresh random subset in a fresh random order.
+export const PANELS_SEQUENCE_LENGTH = 4;
 export const PANELS_REVEAL_LIT_MS = 500; // how long each plate glows during reveal
 export const PANELS_REVEAL_GAP_MS = 250; // unlit gap before the next reveal
 export const PANELS_CHECK_INTERVAL_MS = 1500; // spec-mandated: 1.5s per recite check
 export const PANELS_RESULT_HOLD_MS = 450; // how long the green flash / lava-fall plays before advancing
-export const SCRATCH_RESOLVE_FLASH_MS = 350; // no telegraph, per spec — just long enough to read
-// Spec-mandated: one Scratch instance is 3 rapid strikes, not one, each
-// independently checking the player's position 0.8s apart — so a player
-// can dodge into the lit column mid-combo and only eat some of the hits.
-export const SCRATCH_STRIKE_COUNT = 3;
-export const SCRATCH_STRIKE_INTERVAL_MS = 800;
-export const ROAR_TELEGRAPH_MS = 1200; // spec-mandated warning window
+export const SCRATCH_RESOLVE_FLASH_MS = 720; // full articulated wind-up, extension, contact, and follow-through
+// Reverted to a single strike per Scratch instance (a 3-rapid-strikes
+// combo was tried and didn't stick) — one check against the player's
+// position, once.
+export const SCRATCH_STRIKE_COUNT = 1;
+export const SCRATCH_STRIKE_INTERVAL_MS = 800; // how long the strike's flash/claw marks hold before resolving
+export const SCRATCH_FOLLOWUP_DELAY_MS = 600;
+// The rocks now complete their fall 0.15s faster than the previous 1.2s.
+export const ROAR_TELEGRAPH_MS = 1050;
 export const ROAR_RESOLVE_FLASH_MS = 400;
+// Each Roar chooses a fresh count in this inclusive range.
+export const ROAR_WAVE_MIN = 2;
+export const ROAR_WAVE_MAX = 4;
 export const INTER_ATTACK_DELAY_MS = 4000; // spec-mandated gap between attacks
+export const INITIAL_ATTACK_DELAY_MS = 4000;
 // Spec-mandated: after the Damage Phase hands back to the Survival Phase,
 // the bear waits this long before its next attack can start.
 export const POST_DAMAGE_PHASE_COOLDOWN_MS = 5000;
 export const ATTACKS_PER_SURVIVAL_PHASE = 3;
-
-// Torch
-export const TORCH_SWITCH_INTERVAL_MS = 8000; // spec-mandated
 
 // Player movement
 export const JUMP_AIRBORNE_MS = 550; // must safely straddle a Body Slam resolve when timed well

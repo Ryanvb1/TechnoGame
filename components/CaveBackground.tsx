@@ -192,7 +192,11 @@ export const CaveBackground = forwardRef<HTMLDivElement, { awake?: boolean }>(fu
         className="absolute left-1/2 -translate-x-1/2"
         style={{ top: 272, height: 528, width: CAVE_WIDTH, perspective: "900px" }}
       >
-        <div className="relative h-full w-full" style={{ transformStyle: "preserve-3d", transform: "rotateX(58deg)" }}>
+        <div
+          data-snail-boundary
+          className="relative h-full w-full"
+          style={{ transformStyle: "preserve-3d", transform: "rotateX(58deg)" }}
+        >
           <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, #241a14 0%, #140d0a 100%)" }} />
           <div
             className="absolute inset-0 opacity-40"
